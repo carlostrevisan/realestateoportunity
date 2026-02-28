@@ -9,14 +9,14 @@ const MARKETS = [
   { value: "winter_park", label: "Winter Park", zips: ["32789", "32792"] },
 ];
 
-// ── Shared Primitives (Palantir Tactical) ──────────────────────────
+// ── Shared Primitives (Assertive Tactical) ──────────────────────────
 
 function Label({ children }) {
-  return <span className="text-[10px] font-semibold uppercase tracking-wider text-plt-muted mb-2 block">{children}</span>;
+  return <span className="text-[10px] font-bold uppercase tracking-widest text-plt-text-muted mb-2 block">{children}</span>;
 }
 
 function Val({ children, green, yellow, red, mono, lg }) {
-  let color = "text-plt-primary";
+  let color = "text-plt-text-primary";
   if (green) color = "text-plt-success";
   if (yellow) color = "text-plt-warning";
   if (red) color = "text-plt-danger";
@@ -29,40 +29,42 @@ function Val({ children, green, yellow, red, mono, lg }) {
 
 function Panel({ title, tag, children, className = "" }) {
   return (
-    <div className={`bg-plt-panel border border-plt-border flex flex-col relative overflow-hidden rounded ${className}`}>
-      <div className="absolute top-0 right-0 w-32 h-32 bg-plt-accent/5 blur-[60px] pointer-events-none" />
-      <div className="flex items-center justify-between px-3 py-2.5 sm:px-4 sm:py-3 border-b border-plt-border bg-plt-bg/30 flex-shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="w-1.5 h-1.5 bg-plt-accent rounded-full shadow-[0_0_8px_var(--plt-accent)]" />
-          <span className="text-xs font-semibold text-plt-primary">{title}</span>
+    <div className={`bg-plt-panel border border-plt-border flex flex-col relative overflow-hidden rounded-md shadow-sm ${className}`}>
+      <div className="flex items-center justify-between px-4 py-3 border-b border-plt-border bg-plt-bg/20 flex-shrink-0">
+        <div className="flex items-center gap-2.5">
+          <div className="w-1.5 h-1.5 bg-plt-accent rounded-full" />
+          <span className="text-[11px] font-bold uppercase tracking-widest text-plt-text-primary">{title}</span>
         </div>
-        {tag && <span className="text-[9px] font-mono text-plt-muted tracking-widest">{tag}</span>}
+        {tag && <span className="text-[9px] font-mono font-bold text-plt-text-muted tracking-widest">{tag}</span>}
       </div>
-      <div className="p-4 sm:p-5 flex-1">{children}</div>
+      <div className="p-4 flex-1 overflow-y-auto custom-scrollbar">{children}</div>
     </div>
   );
 }
 
 function StatusDot({ status }) {
   const map = {
-    running:   "bg-plt-accent shadow-[0_0_10px_var(--plt-accent)] animate-pulse",
-    completed: "bg-plt-success shadow-[0_0_10px_var(--plt-success)]",
-    failed:    "bg-plt-danger shadow-[0_0_10px_var(--plt-danger)]",
+    running:   "bg-plt-accent animate-pulse shadow-[0_0_8px_var(--plt-accent)]",
+    completed: "bg-plt-success shadow-[0_0_8px_var(--plt-success)]",
+    failed:    "bg-plt-danger shadow-[0_0_8px_var(--plt-danger)]",
     pending:   "bg-plt-warning animate-pulse",
     idle:      "bg-plt-border",
   };
   return <span className={`inline-block w-2 h-2 rounded-full flex-shrink-0 ${map[status] || map.idle}`} />;
 }
 
-function Btn({ children, onClick, disabled, variant = "primary" }) {
+function Btn({ children, onClick, disabled, variant = "primary", className = "" }) {
   const variants = {
-    primary: "bg-plt-accent text-white font-semibold hover:brightness-110 shadow-lg shadow-plt-accent/10",
-    ghost:   "bg-transparent border border-plt-border text-plt-primary hover:border-plt-accent hover:text-plt-accent",
-    success: "bg-plt-success text-white font-semibold hover:brightness-110",
+    primary: "bg-plt-accent text-white hover:bg-plt-accent-hover shadow-sm",
+    success: "bg-plt-success text-white hover:bg-plt-success-hover shadow-sm",
+    danger:  "bg-plt-danger text-white hover:bg-plt-danger-hover shadow-sm",
+    ghost:   "bg-transparent border border-plt-border text-plt-text-secondary hover:bg-plt-hover hover:text-plt-text-primary",
+    outline: "bg-transparent border border-plt-accent text-plt-accent hover:bg-plt-accent/5",
   };
+  
   return (
     <button
-      className={`w-full text-xs py-2.5 px-4 transition-all rounded disabled:opacity-30 disabled:cursor-not-allowed ${variants[variant]}`}
+      className={`w-full text-[11px] font-bold uppercase tracking-wider py-2.5 px-4 transition-all duration-150 rounded active:scale-[0.98] disabled:opacity-30 disabled:cursor-not-allowed disabled:active:scale-100 ${variants[variant]} ${className}`}
       onClick={onClick}
       disabled={disabled}
     >
@@ -73,32 +75,10 @@ function Btn({ children, onClick, disabled, variant = "primary" }) {
 
 // ── Components ───────────────────────────────────────────────────────
 
-function JobConsole({ newJobId, onClear }) {
-  const [jobs, setJobs] = useState([]);
-  const [selectedId, setSelectedId] = useState(null);
+function JobConsole({ selectedId, setSelectedId, jobs = [], onClear }) {
   const [selectedJob, setSelectedJob] = useState(null);
-  const [stopping, setStopping] = useState({});
   const scrollRef = useRef(null);
 
-  // Auto-select newly triggered jobs
-  useEffect(() => {
-    if (newJobId) setSelectedId(newJobId);
-  }, [newJobId]);
-
-  // Poll full job list every 2s
-  useEffect(() => {
-    const poll = async () => {
-      try {
-        const data = await fetch(`${API}/api/jobs`).then(r => r.json());
-        setJobs(data);
-      } catch {}
-    };
-    poll();
-    const id = setInterval(poll, 2000);
-    return () => clearInterval(id);
-  }, []);
-
-  // Poll selected job logs every 1.5s
   useEffect(() => {
     if (!selectedId) { setSelectedJob(null); return; }
     const poll = async () => {
@@ -112,130 +92,102 @@ function JobConsole({ newJobId, onClear }) {
     return () => clearInterval(id);
   }, [selectedId]);
 
-  // Auto-scroll on new log lines
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
     }
   }, [selectedJob?.logs?.length]);
 
-  const stopJob = async (e, jobId) => {
-    e.stopPropagation();
-    setStopping(p => ({ ...p, [jobId]: true }));
-    try { await fetch(`${API}/api/jobs/${jobId}/stop`, { method: "POST" }); } catch {}
-    setStopping(p => ({ ...p, [jobId]: false }));
-  };
-
   const handleClear = () => { setSelectedId(null); setSelectedJob(null); onClear?.(); };
-  const clearDone = () => setJobs(prev => prev.filter(j => j.status === "running"));
 
-  const runningCount = jobs.filter(j => j.status === "running").length;
-  const hasDone = jobs.some(j => j.status !== "running");
-  const visibleJobs = jobs.slice(0, 20);
-  const statusLabel = selectedJob?.status
-    ? selectedJob.status.charAt(0).toUpperCase() + selectedJob.status.slice(1)
-    : runningCount > 0 ? `${runningCount} Running` : "Ready";
+  const statusLabel = selectedJob?.status ? selectedJob.status.toUpperCase() : "READY";
 
   return (
-    <div className="flex flex-col h-full bg-plt-bg border border-plt-border overflow-hidden relative shadow-2xl rounded">
-
-      {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2.5 sm:px-5 sm:py-3 border-b border-plt-border bg-plt-panel/50 flex-shrink-0">
+    <div className="flex flex-col h-full bg-white border border-plt-border overflow-hidden relative shadow-sm rounded-md">
+      {/* 1. Header */}
+      <div className="flex items-center justify-between px-5 py-3 border-b border-plt-border bg-plt-bg/20 flex-shrink-0">
         <div className="flex items-center gap-3">
-          <StatusDot status={selectedJob?.status || (runningCount > 0 ? "running" : "idle")} />
-          <span className="text-xs font-semibold text-plt-primary">
-            Console · {statusLabel}
-            {selectedId && <span className="text-plt-muted ml-3 font-mono text-[10px]">#{selectedId}</span>}
+          <StatusDot status={selectedJob?.status || "idle"} />
+          <span className="text-[11px] font-bold uppercase tracking-widest text-plt-text-primary">
+            Telemetry Stream · {statusLabel}
           </span>
         </div>
-        {(selectedId || jobs.length > 0) && (
-          <button onClick={handleClear} className="text-plt-muted hover:text-plt-accent text-xs font-medium transition-colors">Clear</button>
+        {selectedId && (
+          <button onClick={handleClear} className="text-plt-text-muted hover:text-plt-accent text-[10px] font-bold uppercase tracking-widest transition-colors">Close</button>
         )}
       </div>
 
-      {/* Job list */}
-      {jobs.length > 0 && (
-        <div className="flex-shrink-0 border-b border-plt-border bg-plt-panel/30 max-h-[200px] overflow-y-auto">
-          <div className="px-3 py-1.5 flex items-center justify-between sticky top-0 bg-plt-panel/80 backdrop-blur-sm">
-            <span className="text-[9px] font-semibold uppercase tracking-widest text-plt-muted">
-              Jobs <span className="text-plt-primary">{jobs.length}</span>
-            </span>
-            <div className="flex items-center gap-3">
-              {runningCount > 0 && <span className="text-[9px] font-mono text-plt-accent">{runningCount} active</span>}
-              {hasDone && (
-                <button onClick={clearDone} className="text-[9px] text-plt-muted hover:text-plt-warning transition-colors font-medium">
-                  Clear done
-                </button>
-              )}
-            </div>
-          </div>
-          {visibleJobs.map(job => {
-            const isSelected = job.id === selectedId;
-            const isRunning = job.status === "running";
-            const context = [job.meta?.market || job.meta?.zip, job.meta?.scrape_type].filter(Boolean).join(" · ") || "—";
-            const timeStr = job.started_at
-              ? new Date(job.started_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })
-              : "";
-            const statusColor = isRunning ? "text-plt-accent" : job.status === "completed" ? "text-plt-success" : job.status === "failed" ? "text-plt-danger" : "text-plt-muted";
-            return (
-              <div
-                key={job.id}
-                onClick={() => setSelectedId(job.id)}
-                className={`flex items-center gap-2 sm:gap-3 px-3 py-2 cursor-pointer transition-colors border-t border-plt-border/30 ${
-                  isSelected ? "bg-plt-accent/10 border-l-2 border-l-plt-accent" : "hover:bg-plt-accent/5"
-                }`}
-              >
-                <StatusDot status={job.status} />
-                <span className="font-mono text-[10px] text-plt-primary font-semibold w-10 flex-shrink-0">{job.type}</span>
-                <span className="text-[10px] text-plt-muted flex-1 truncate min-w-0">{context}</span>
-                <span className="text-[9px] font-mono text-plt-muted flex-shrink-0 hidden sm:block">{timeStr}</span>
-                <span className={`text-[9px] font-mono flex-shrink-0 ${statusColor}`}>{job.status}</span>
-                {isRunning && (
-                  <button
-                    onClick={e => stopJob(e, job.id)}
-                    disabled={stopping[job.id]}
-                    className="flex-shrink-0 text-[9px] font-bold px-2 py-0.5 rounded border border-plt-danger/60 text-plt-danger hover:bg-plt-danger hover:text-white transition-all disabled:opacity-40"
-                  >
-                    {stopping[job.id] ? "…" : "Stop"}
-                  </button>
-                )}
-              </div>
-            );
-          })}
+      {/* 2. Job Selector Box (The requested "Box before logs") */}
+      <div className="px-5 py-3 border-b border-plt-border bg-slate-50 flex-shrink-0">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-[9px] font-black uppercase text-plt-text-muted tracking-widest">Recent & Active Tasks</span>
+          {jobs.length > 0 && (
+            <span className="text-[9px] font-bold text-plt-accent uppercase">{jobs.length} total</span>
+          )}
         </div>
-      )}
-
-      {/* Log viewer */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-3 sm:px-6 sm:py-4 font-mono text-[10px] sm:text-[11px] leading-relaxed">
-        {!selectedJob && jobs.length === 0 && (
-          <span className="text-plt-muted opacity-40">No jobs yet — trigger a scrape or ML run.</span>
+        
+        {jobs.length === 0 ? (
+          <div className="py-2 text-[10px] text-plt-text-muted italic opacity-60">No recent tasks found...</div>
+        ) : (
+          <div className="flex gap-2 overflow-x-auto pb-1 custom-scrollbar scroll-smooth">
+            {jobs.slice(0, 10).map(j => {
+              const isActive = selectedId == j.id;
+              const shortId = j.id.toString().substring(0, 8);
+              return (
+                <button
+                  key={j.id}
+                  onClick={() => setSelectedId(j.id)}
+                  className={`flex items-center gap-2.5 px-3 py-1.5 rounded border transition-all whitespace-nowrap group ${
+                    isActive 
+                      ? "bg-plt-accent border-plt-accent text-white shadow-sm ring-2 ring-plt-accent/10" 
+                      : "bg-white border-plt-border text-plt-text-secondary hover:border-plt-accent/50 hover:bg-slate-50"
+                  }`}
+                >
+                  <StatusDot status={j.status} />
+                  <div className="flex flex-col items-start leading-tight">
+                    <span className={`text-[10px] font-black uppercase tracking-tighter ${isActive ? "text-white" : "text-plt-text-primary"}`}>
+                      {j.type} <span className={`font-mono font-medium ${isActive ? "text-white/70" : "text-plt-text-muted"}`}>#{shortId}</span>
+                    </span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
         )}
-        {!selectedJob && jobs.length > 0 && (
-          <span className="text-plt-muted opacity-40">Select a job above to view its output.</span>
+      </div>
+
+      {/* 3. Log Output Area */}
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 py-4 font-mono text-[11px] leading-relaxed bg-slate-50 custom-scrollbar">
+        {!selectedJob && (
+          <div className="h-full flex flex-col items-center justify-center text-center opacity-40 py-10">
+            <svg className="w-8 h-8 mb-3 text-plt-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            <span className="text-plt-text-muted uppercase tracking-[0.2em] text-[10px] font-bold">
+              {jobs.length > 0 ? "Select a task above to view real-time logs" : "Standby for new telemetry..."}
+            </span>
+          </div>
         )}
         {selectedJob?.logs?.map((line, i) => {
           const lower = line.toLowerCase();
-          let color = "text-plt-muted", weight = "font-normal";
-          if (line.includes("[FAIL]") || lower.includes("failed") || lower.includes("error")) { color = "text-plt-danger"; weight = "font-medium"; }
-          else if (line.includes("[SKIP]")) { color = "text-plt-warning"; }
-          else if (line.includes("[LOAD]")) { color = "text-plt-success"; weight = "font-medium"; }
-          else if (line.includes("[EXEC]")) { color = "text-plt-accent"; weight = "font-semibold"; }
-          else if (line.includes("[NETW]")) { color = "text-blue-400"; }
-          else if (line.includes("[WARN]") || lower.includes("retry") || lower.includes("retrying")) { color = "text-plt-warning"; weight = "font-medium"; }
+          let color = "text-plt-text-secondary";
+          if (line.includes("[FAIL]") || lower.includes("failed") || lower.includes("error")) color = "text-plt-danger";
+          else if (line.includes("[SKIP]")) color = "text-plt-warning";
+          else if (line.includes("[LOAD]")) color = "text-plt-success";
+          else if (line.includes("[EXEC]")) color = "text-plt-accent font-bold";
           return (
-            <div key={i} className={`${color} ${weight} break-all whitespace-pre-wrap mb-1 flex gap-2 sm:gap-4 hover:bg-plt-accent/5 transition-colors`}>
-              <span className="opacity-30 select-none w-6 sm:w-8 text-[9px] flex-shrink-0">{(i + 1).toString().padStart(3, "0")}</span>
+            <div key={i} className={`${color} break-all whitespace-pre-wrap mb-1 flex gap-4`}>
+              <span className="opacity-30 select-none w-8 flex-shrink-0">{(i + 1).toString().padStart(3, "0")}</span>
               <span className="flex-1">{line}</span>
             </div>
           );
         })}
-        {selectedJob?.status === "running" && <div className="text-plt-accent mt-2 animate-pulse font-mono ml-12">▌</div>}
       </div>
     </div>
   );
 }
 
-function HUD({ mlStatus, scrapeStatus }) {
+const HUD = React.memo(({ mlStatus, scrapeStatus }) => {
   const soldTotal = scrapeStatus.filter(r => r.listing_type === 'sold').reduce((s, r) => s + parseInt(r.property_count), 0);
   const forSaleTotal = scrapeStatus.filter(r => r.listing_type === 'for_sale').reduce((s, r) => s + parseInt(r.property_count), 0);
   const unscored = mlStatus?.counts?.for_sale?.unscored ?? 0;
@@ -245,23 +197,23 @@ function HUD({ mlStatus, scrapeStatus }) {
     { label: "Historical", val: soldTotal.toLocaleString(), green: soldTotal > 0 },
     { label: "Active", val: forSaleTotal.toLocaleString(), green: forSaleTotal > 0 },
     { label: "Unscored", val: unscored.toLocaleString(), yellow: unscored > 0 },
-    { label: "Precision", val: r2 ? parseFloat(r2).toFixed(4) : "None", green: r2 > 0.8, yellow: r2 > 0 && r2 <= 0.8 },
-    { label: "State", val: mlStatus?.train?.status ? mlStatus.train.status.charAt(0).toUpperCase() + mlStatus.train.status.slice(1) : "Idle", mono: true },
+    { label: "R² Precision", val: r2 ? parseFloat(r2).toFixed(4) : "None", green: r2 > 0.8 },
+    { label: "ML State", val: mlStatus?.train?.status ? mlStatus.train.status.toUpperCase() : "IDLE", mono: true },
   ];
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 border border-plt-border bg-plt-panel divide-x divide-plt-border rounded overflow-hidden">
+    <div className="grid grid-cols-2 md:grid-cols-5 border border-plt-border bg-white divide-x divide-plt-border rounded-md overflow-hidden shadow-sm">
       {stats.map(s => (
-        <div key={s.label} className="px-3 py-3 sm:px-5 sm:py-4">
-          <div className="text-[10px] font-semibold uppercase tracking-wider text-plt-muted mb-1.5">{s.label}</div>
+        <div key={s.label} className="px-5 py-4">
+          <div className="text-[9px] font-bold uppercase tracking-widest text-plt-text-muted mb-1.5">{s.label}</div>
           <Val mono lg green={s.green} yellow={s.yellow}>{s.val}</Val>
         </div>
       ))}
     </div>
   );
-}
+});
 
-// ── Train Modal ───────────────────────────────────────────────────────
+// ── Modals ─────────────────────────────────────────────────────────────
 
 function TrainModal({ onClose, onJob }) {
   const DEFAULTS = { n_estimators: 1000, max_depth: 6, lr: 0.05, min_year_built: 2015, test_split: 0.20 };
@@ -272,6 +224,7 @@ function TrainModal({ onClose, onJob }) {
 
   const submit = async () => {
     setRunning(true);
+    const start = Date.now();
     try {
       const res = await fetch(`${API}/api/ml/train`, {
         method: "POST",
@@ -281,102 +234,104 @@ function TrainModal({ onClose, onJob }) {
       const data = await res.json();
       if (data.job_id) onJob(data.job_id);
     } catch {}
+    const elapsed = Date.now() - start;
+    if (elapsed < 600) await new Promise(r => setTimeout(r, 600 - elapsed));
     setRunning(false);
     onClose();
   };
 
-  const fields = [
-    {
-      key: "n_estimators",
-      label: "Estimators",
-      min: 100, max: 5000, step: 100,
-      hint: "Number of decision trees in the ensemble. More trees = higher accuracy but longer training time. 1000 is a solid default. Lower to 200–300 for a quick test run; raise to 2000–3000 only if your dataset is large (1000+ new builds) and R² is plateauing.",
-      tradeoff: "↑ Higher → more accurate, slower   ↓ Lower → faster, less precise",
-    },
-    {
-      key: "max_depth",
-      label: "Max Tree Depth",
-      min: 2, max: 15, step: 1,
-      hint: "How many levels deep each tree can branch. Deeper trees can model complex interactions between sqft, lot size, and income — but too deep and the model memorizes training data instead of learning patterns.",
-      tradeoff: "↑ Higher → captures more nuance, risk of overfit   ↓ Lower → simpler model, generalizes better",
-    },
-    {
-      key: "lr",
-      label: "Learning Rate",
-      min: 0.001, max: 0.5, step: 0.001,
-      hint: "How aggressively each new tree corrects the previous trees' errors. Pairs with Estimators: a lower learning rate needs more trees to converge, but usually produces a more robust model. If you lower this, raise Estimators proportionally.",
-      tradeoff: "↑ Higher → trains faster, may overshoot   ↓ Lower → more stable, needs more estimators",
-    },
-    {
-      key: "min_year_built",
-      label: "Min Year Built (training set)",
-      min: 1990, max: 2023, step: 1,
-      hint: "Only homes built this year or later are used as training examples. The model learns what a newly-built home is worth by studying these recent sales. Set lower (e.g. 2010) to include more training records when data is scarce; set higher (e.g. 2018) to reflect only the most current construction pricing.",
-      tradeoff: "↑ Higher → reflects latest pricing trends, fewer training rows   ↓ Lower → more training data, older price signals mixed in",
-    },
-    {
-      key: "test_split",
-      label: "Test Split",
-      min: 0.10, max: 0.40, step: 0.01,
-      hint: "Fraction of training data held back to evaluate the model — this is what produces the R² score you see in the model card. Does not affect what gets scored afterward. With small datasets (< 200 records) keep this at 0.15–0.20 so you have enough training rows.",
-      tradeoff: "↑ Higher → more reliable R² estimate, less training data   ↓ Lower → trains on more data, R² less reliable",
-    },
-  ];
-
   return (
-    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div
-        className="bg-plt-panel border border-plt-border rounded shadow-2xl w-full max-w-lg flex flex-col max-h-[90vh]"
-        onClick={e => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-plt-border flex-shrink-0">
+    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white border border-plt-border rounded-lg shadow-2xl w-full max-w-lg flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-plt-border bg-slate-50 rounded-t-lg">
           <div>
-            <span className="text-sm font-semibold text-plt-primary">Train ML Model</span>
-            <p className="text-[10px] text-plt-muted mt-0.5">XGBoost · predicts rebuilt home value from sqft, lot size &amp; area income</p>
+            <span className="text-sm font-bold uppercase tracking-widest text-plt-text-primary">Train XGBoost Model</span>
+            <p className="text-[10px] text-plt-text-muted mt-0.5 font-medium">Configure hyper-parameters for property valuation</p>
           </div>
-          <button onClick={onClose} className="text-plt-muted hover:text-plt-danger transition-colors p-1 flex-shrink-0">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
+          <button onClick={onClose} className="text-plt-text-muted hover:text-plt-danger transition-colors p-1">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
           </button>
         </div>
-
-        {/* Scrollable fields */}
-        <div className="overflow-y-auto flex-1 px-5 py-4 space-y-4">
-          {fields.map(f => (
-            <div key={f.key} className="bg-plt-bg/50 border border-plt-border/60 rounded p-3 space-y-2">
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-xs font-semibold text-plt-primary">{f.label}</span>
-                <input
-                  type="number"
-                  value={params[f.key]}
-                  min={f.min}
-                  max={f.max}
-                  step={f.step}
-                  onChange={e => set(f.key, parseFloat(e.target.value))}
-                  className="w-28 h-7 px-2 text-xs font-mono text-right flex-shrink-0"
-                />
-              </div>
-              <p className="text-[11px] text-plt-muted leading-relaxed">{f.hint}</p>
-              <div className="text-[10px] font-mono text-plt-muted/70 bg-plt-border/20 rounded px-2 py-1">{f.tradeoff}</div>
+        <div className="overflow-y-auto flex-1 px-6 py-6 space-y-5">
+          {Object.entries(params).map(([key, val]) => (
+            <div key={key} className="flex items-center justify-between gap-4">
+              <label className="text-[11px] font-bold uppercase tracking-wider text-plt-text-secondary">{key.replace(/_/g, ' ')}</label>
+              <input
+                type="number"
+                value={val}
+                onChange={e => set(key, parseFloat(e.target.value))}
+                className="w-32 h-9 px-3 text-xs font-mono text-right border border-plt-border rounded"
+              />
             </div>
           ))}
         </div>
+        <div className="flex gap-3 px-6 py-5 border-t border-plt-border bg-slate-50 rounded-b-lg">
+          <Btn onClick={submit} disabled={running} variant="primary" className="flex-1 h-11">Start Training</Btn>
+          <Btn onClick={onClose} variant="ghost" className="flex-1 h-11">Cancel</Btn>
+        </div>
+      </div>
+    </div>
+  );
+}
 
-        {/* Footer */}
-        <div className="flex gap-3 px-5 py-4 border-t border-plt-border flex-shrink-0">
-          <button
-            onClick={submit}
-            disabled={running}
-            className="flex-1 text-xs font-semibold py-2.5 rounded bg-plt-accent text-white hover:brightness-110 disabled:opacity-40 transition-all"
-          >
-            {running ? "Starting…" : "Train Model"}
+function WeightedScoringModal({ onClose, onJob }) {
+  const DEFAULTS = { sqft: 35, zip: 25, avg_new_build_price_sqft_05mi: 30, lot_sqft: 5, year_built: 5, median_household_income: 0 };
+  const [weights, setWeights] = useState(DEFAULTS);
+  const [running, setRunning] = useState(false);
+
+  const total = Object.values(weights).reduce((a, b) => a + b, 0);
+  const update = (k, v) => setWeights(p => ({ ...p, [k]: Math.max(0, parseInt(v) || 0) }));
+
+  const submit = async () => {
+    if (total === 0) return alert("Total importance must be > 0%");
+    setRunning(true);
+    const start = Date.now();
+    const normalized = {};
+    Object.keys(weights).forEach(k => normalized[k] = weights[k] / total);
+    try {
+      const res = await fetch(`${API}/api/ml/score-weighted`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ weights: normalized }),
+      });
+      const data = await res.json();
+      if (data.job_id) onJob(data.job_id);
+    } catch {}
+    const elapsed = Date.now() - start;
+    if (elapsed < 600) await new Promise(r => setTimeout(r, 600 - elapsed));
+    setRunning(false);
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white border border-plt-border rounded-lg shadow-2xl w-full max-w-md flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-plt-border bg-slate-50 rounded-t-lg">
+          <div>
+            <span className="text-sm font-bold uppercase tracking-widest text-plt-text-primary">Weighted Scoring</span>
+            <p className="text-[10px] text-plt-text-muted mt-0.5 font-medium">Define manual feature importance baseline</p>
+          </div>
+          <button onClick={onClose} className="text-plt-text-muted hover:text-plt-danger transition-colors p-1">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
           </button>
-          <button
-            onClick={onClose}
-            className="flex-1 text-xs font-semibold py-2.5 rounded border border-plt-border text-plt-primary hover:border-plt-accent hover:text-plt-accent transition-all"
-          >
-            Cancel
-          </button>
+        </div>
+        <div className="overflow-y-auto flex-1 px-6 py-6 space-y-5">
+          <div className={`p-2 rounded text-center text-[10px] font-bold border ${total === 100 ? "bg-plt-success/10 border-plt-success/30 text-plt-success" : "bg-plt-warning/10 border-plt-warning/30 text-plt-warning"}`}>
+            TOTAL IMPORTANCE: {total}% {total !== 100 && "(WILL NORMALIZE)"}
+          </div>
+          {Object.entries(weights).map(([key, val]) => (
+            <div key={key} className="flex items-center justify-between gap-4">
+              <label className="text-[11px] font-bold uppercase tracking-wider text-plt-text-secondary">{key.replace(/_/g, ' ')}</label>
+              <div className="flex items-center gap-2">
+                <input type="number" value={val} onChange={e => update(key, e.target.value)} className="w-20 h-9 px-3 text-xs font-mono text-right border border-plt-border rounded" />
+                <span className="text-[10px] font-bold text-plt-text-muted">%</span>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="flex gap-3 px-6 py-5 border-t border-plt-border bg-slate-50 rounded-b-lg">
+          <Btn onClick={submit} disabled={running || total === 0} variant="primary" className="flex-1 h-11">Run Scoring</Btn>
+          <Btn onClick={onClose} variant="ghost" className="flex-1 h-11">Cancel</Btn>
         </div>
       </div>
     </div>
@@ -390,39 +345,41 @@ function IngestionControls({ onJob }) {
   const [start, setStart] = useState("2022-01");
   const lastMonth = new Date(); lastMonth.setMonth(lastMonth.getMonth() - 1);
   const [end, setEnd] = useState(`${lastMonth.getFullYear()}-${String(lastMonth.getMonth() + 1).padStart(2, '0')}`);
-  const [throttle, setThrottle] = useState(10);  // default: Balanced
+  const [throttle, setThrottle] = useState(10);
   const [forceRenew, setForceRenew] = useState(false);
   const [running, setRunning] = useState({});
 
   const trigger = async (type, params = {}) => {
     setRunning(p => ({ ...p, [type]: true }));
+    const startTime = Date.now();
     const body = { type, market, throttle, force_renew: forceRenew, all_zips: true, ...params };
     const res = await fetch(`${API}/api/scrape/trigger`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     const data = await res.json();
     if (data.job_id) onJob(data.job_id);
+    
+    const elapsed = Date.now() - startTime;
+    if (elapsed < 600) await new Promise(r => setTimeout(r, 600 - elapsed));
     setRunning(p => ({ ...p, [type]: false }));
   };
 
   return (
-    <div className="space-y-5 sm:space-y-8">
-      <div className="grid grid-cols-2 gap-2 sm:gap-4">
-        <div><Label>Market</Label><select value={market} onChange={e => setMarket(e.target.value)} className="w-full h-9 sm:h-10 px-2 sm:px-3 text-xs"><option value="all">All Markets</option>{MARKETS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}</select></div>
-        <div><Label>Request Speed</Label><select value={throttle} onChange={e => setThrottle(parseInt(e.target.value))} className="w-full h-9 sm:h-10 px-2 sm:px-3 text-xs"><option value="5">Fast (5s)</option><option value="10">Balanced (10s)</option><option value="30">Safe (30s)</option></select></div>
+    <div className="space-y-6">
+      <div className="grid grid-cols-2 gap-4">
+        <div><Label>Market</Label><select value={market} onChange={e => setMarket(e.target.value)} className="w-full h-10 px-3"><option value="all">All Markets</option>{MARKETS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}</select></div>
+        <div><Label>Request Speed</Label><select value={throttle} onChange={e => setThrottle(parseInt(e.target.value))} className="w-full h-10 px-3"><option value="5">Fast (5s)</option><option value="10">Balanced (10s)</option><option value="30">Safe (30s)</option></select></div>
       </div>
-
       <div className="flex items-center gap-3 py-2 border-y border-plt-border/50">
-        <label className="flex items-center gap-3 cursor-pointer">
-          <input type="checkbox" checked={forceRenew} onChange={e => setForceRenew(e.target.checked)} className="w-4 h-4 accent-plt-accent" />
-          <span className="text-xs text-plt-muted">Re-fetch existing data</span>
+        <label className="flex items-center gap-3 cursor-pointer group">
+          <input type="checkbox" checked={forceRenew} onChange={e => setForceRenew(e.target.checked)} className="w-4 h-4 accent-plt-success" />
+          <span className="text-[11px] font-bold uppercase tracking-wider text-plt-text-secondary group-hover:text-plt-text-primary">Re-fetch existing data</span>
         </label>
       </div>
-
-      <div className="space-y-4 sm:space-y-6">
-        <div><Label>Active Listings</Label><Btn variant="success" disabled={running.for_sale} onClick={() => trigger("for_sale")}>{running.for_sale ? "Running..." : "Sync Active Listings"}</Btn></div>
-        <div className="space-y-3">
-          <Label>Sales History Range</Label>
-          <div className="grid grid-cols-2 gap-2"><input type="month" value={start} onChange={e => setStart(e.target.value)} className="w-full h-9 px-2 text-xs" /><input type="month" value={end} onChange={e => setEnd(e.target.value)} className="w-full h-9 px-2 text-xs" /></div>
-          <Btn disabled={running.sold} onClick={() => trigger("sold", { start, end })}>{running.sold ? "Running..." : "Sync Sold History"}</Btn>
+      <div className="space-y-4">
+        <Btn variant="success" disabled={running.for_sale} onClick={() => trigger("for_sale")}>{running.for_sale ? "Syncing..." : "Sync Active Listings"}</Btn>
+        <div className="space-y-3 p-4 bg-slate-50 border border-plt-border rounded-md">
+          <Label>Historical Range</Label>
+          <div className="grid grid-cols-2 gap-2 mb-2"><input type="month" value={start} onChange={e => setStart(e.target.value)} className="w-full h-9 px-2 text-xs" /><input type="month" value={end} onChange={e => setEnd(e.target.value)} className="w-full h-9 px-2 text-xs" /></div>
+          <Btn variant="success" disabled={running.sold} onClick={() => trigger("sold", { start, end })}>{running.sold ? "Syncing..." : "Sync Sold History"}</Btn>
         </div>
       </div>
     </div>
@@ -434,14 +391,19 @@ function IntelControls({ mlStatus, onJob }) {
   const [models, setModels] = useState([]);
   const [activating, setActivating] = useState(null);
   const [expandedId, setExpandedId] = useState(null);
-  const [editFields, setEditFields] = useState({});  // { [modelId]: { name, description } }
+  const [editFields, setEditFields] = useState({});
   const [showTrainModal, setShowTrainModal] = useState(false);
+  const [showWeightedModal, setShowWeightedScoringModal] = useState(false);
 
   const trigger = async (endpoint) => {
     setRunning(p => ({ ...p, [endpoint]: true }));
+    const startTime = Date.now();
     const res = await fetch(`${API}/api/ml/${endpoint}`, { method: "POST" });
     const data = await res.json();
     if (data.job_id) onJob(data.job_id);
+    
+    const elapsed = Date.now() - startTime;
+    if (elapsed < 600) await new Promise(r => setTimeout(r, 600 - elapsed));
     setRunning(p => ({ ...p, [endpoint]: false }));
   };
 
@@ -450,7 +412,6 @@ function IntelControls({ mlStatus, onJob }) {
       const data = await fetch(`${API}/api/ml/models`).then(r => r.json());
       if (Array.isArray(data)) {
         setModels(data);
-        // Seed editFields for any new models not yet tracked
         setEditFields(prev => {
           const next = { ...prev };
           data.forEach(m => {
@@ -470,11 +431,13 @@ function IntelControls({ mlStatus, onJob }) {
 
   const activateModel = async (modelId) => {
     setActivating(modelId);
-    try {
-      await fetch(`${API}/api/ml/models/${modelId}/activate`, { method: "POST" });
-      await fetchModels();
-    } catch {}
+    try { await fetch(`${API}/api/ml/models/${modelId}/activate`, { method: "POST" }); await fetchModels(); } catch {}
     setActivating(null);
+  };
+
+  const deleteModel = async (modelId) => {
+    if (!window.confirm("ARE YOU SURE? THIS CANNOT BE UNDONE.")) return;
+    try { await fetch(`${API}/api/ml/models/${modelId}`, { method: "DELETE" }); await fetchModels(); } catch {}
   };
 
   const patchModel = async (modelId) => {
@@ -493,142 +456,71 @@ function IntelControls({ mlStatus, onJob }) {
   const activeModel = models.find(m => m.is_active);
 
   return (
-    <div className="space-y-5 sm:space-y-6">
-
-      {/* Model list */}
+    <div className="space-y-6">
       <div className="space-y-2">
-        <Label>Trained Models</Label>
+        <Label>Available Models</Label>
         {models.length === 0 ? (
-          <div className="text-[10px] text-plt-muted opacity-50 py-3 text-center border border-plt-border/30 rounded">
-            No models yet — train one below
-          </div>
+          <div className="text-[10px] font-bold uppercase text-plt-text-muted opacity-50 py-6 text-center border border-dashed border-plt-border rounded">No models trained</div>
         ) : (
-          <div className="border border-plt-border rounded overflow-hidden divide-y divide-plt-border/50">
+          <div className="border border-plt-border rounded divide-y divide-plt-border max-h-[320px] overflow-y-auto custom-scrollbar bg-slate-50">
             {models.map(m => {
-              const ctx = m.training_context || {};
               const isActive = m.is_active;
               const isExpanded = expandedId === m.id;
-              const dateStr = m.started_at
-                ? new Date(m.started_at).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })
-                : "—";
-              const r2 = m.r2_score ? parseFloat(m.r2_score).toFixed(4) : "n/a";
-              const r2Color = parseFloat(m.r2_score) > 0.8 ? "text-plt-success" : parseFloat(m.r2_score) > 0.5 ? "text-plt-warning" : "text-plt-muted";
-
-              const cities = ctx.cities?.length ? ctx.cities.join(", ") : ctx.zip_codes?.slice(0, 3).join(", ") || "—";
-              const dateRange = ctx.sold_date_from && ctx.sold_date_to
-                ? `${ctx.sold_date_from} – ${ctx.sold_date_to}`
-                : null;
-              const props = m.properties_trained ? parseInt(m.properties_trained).toLocaleString() : "—";
-              const displayName = m.name || `Model #${m.id}`;
+              const dateStr = m.started_at ? new Date(m.started_at).toLocaleDateString([], { month: "short", day: "numeric" }) : "—";
+              const r2 = m.r2_score ? parseFloat(m.r2_score).toFixed(4) : "N/A";
+              const displayName = m.name || `MODEL #${m.id}`;
               const edit = editFields[m.id] || { name: "", description: "" };
-
-              // Feature importances from training_context
-              const importances = ctx.feature_importances
-                ? Object.entries(ctx.feature_importances).sort((a, b) => b[1] - a[1])
-                : null;
+              const importances = m.training_context?.feature_importances ? Object.entries(m.training_context.feature_importances).sort((a, b) => b[1] - a[1]) : null;
 
               return (
-                <div
-                  key={m.id}
-                  className={`transition-colors ${isActive ? "bg-plt-accent/8 border-l-2 border-l-plt-accent" : ""}`}
-                >
-                  {/* Collapsed header row */}
-                  <div
-                    className={`px-3 py-2.5 flex items-start justify-between gap-2 cursor-pointer ${!isExpanded ? "hover:bg-plt-accent/5" : ""}`}
-                    onClick={() => setExpandedId(isExpanded ? null : m.id)}
-                  >
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 mt-0.5 ${isActive ? "bg-plt-success shadow-[0_0_6px_var(--plt-success)]" : "bg-plt-border"}`} />
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-mono text-[10px] text-plt-primary font-semibold">{displayName}</span>
-                          <span className="text-[9px] text-plt-muted">{dateStr}</span>
-                          <span className={`font-mono text-[10px] font-bold ${r2Color}`}>R² {r2}</span>
-                        </div>
-                        <div className="text-[10px] text-plt-muted mt-0.5 truncate">{cities} · {props} props</div>
-                        {dateRange && <div className="text-[9px] text-plt-muted/70 mt-0.5">{dateRange}</div>}
+                <div key={m.id} className={`transition-colors ${isActive ? "bg-white border-l-2 border-l-plt-accent shadow-sm" : ""}`}>
+                  <div className={`px-4 py-3 flex items-start justify-between gap-3 cursor-pointer ${!isExpanded ? "hover:bg-white" : ""}`} onClick={() => setExpandedId(isExpanded ? null : m.id)}>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <span className="font-mono text-[10px] font-black text-plt-text-primary uppercase">{displayName}</span>
+                        <span className="text-[9px] font-bold text-plt-text-muted">{dateStr}</span>
+                        <span className={`font-mono text-[10px] font-bold ${parseFloat(r2) > 0.8 ? "text-plt-success" : "text-plt-text-secondary"}`}>R² {r2}</span>
                       </div>
+                      <div className="text-[9px] font-bold text-plt-text-muted uppercase tracking-tighter truncate">{m.properties_trained} PROPS · {m.training_context?.cities?.join(", ") || "MULTI-MARKET"}</div>
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
                       {isActive ? (
-                        <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-plt-success/15 text-plt-success border border-plt-success/30">Active</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-plt-success/15 text-plt-success border border-plt-success/30 uppercase">Active</span>
+                          <button onClick={e => { e.stopPropagation(); deleteModel(m.id); }} className="text-[9px] font-bold uppercase py-1 px-2 rounded text-plt-danger hover:bg-plt-danger/10 transition-all">Delete</button>
+                        </div>
                       ) : (
-                        <button
-                          onClick={e => { e.stopPropagation(); activateModel(m.id); }}
-                          disabled={activating === m.id}
-                          className="text-[9px] font-semibold px-2 py-0.5 rounded border border-plt-border text-plt-muted hover:border-plt-accent hover:text-plt-accent transition-all disabled:opacity-40"
-                        >
-                          {activating === m.id ? "…" : "Use"}
-                        </button>
+                        <div className="flex items-center gap-1">
+                          <button onClick={e => { e.stopPropagation(); activateModel(m.id); }} disabled={activating === m.id} className="text-[9px] font-bold uppercase py-1 px-2 rounded border border-plt-border text-plt-text-secondary hover:border-plt-accent hover:text-plt-accent transition-all">Use</button>
+                          <button onClick={e => { e.stopPropagation(); deleteModel(m.id); }} className="text-[9px] font-bold uppercase py-1 px-2 rounded text-plt-danger hover:bg-plt-danger/10 transition-all">Delete</button>
+                        </div>
                       )}
-                      {/* Chevron */}
-                      <svg className={`w-3 h-3 text-plt-muted transition-transform ${isExpanded ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
                     </div>
                   </div>
-
-                  {/* Expanded panel */}
                   {isExpanded && (
-                    <div className="px-3 pb-4 pt-1 bg-plt-bg/40 border-t border-plt-border/40 space-y-4">
-                      {/* Name / Description */}
-                      <div className="space-y-2">
+                    <div className="px-4 pb-4 pt-1 bg-white space-y-4 border-t border-slate-100">
+                      <div className="grid grid-cols-2 gap-3">
                         <div>
-                          <label className="text-[9px] font-semibold uppercase tracking-wider text-plt-muted block mb-1">Name</label>
-                          <input
-                            type="text"
-                            value={edit.name}
-                            onChange={e => setEditFields(p => ({ ...p, [m.id]: { ...p[m.id], name: e.target.value } }))}
-                            onBlur={() => patchModel(m.id)}
-                            placeholder={`Model #${m.id}`}
-                            className="w-full h-7 px-2 text-[11px] bg-plt-panel border border-plt-border rounded focus:border-plt-accent outline-none text-plt-primary"
-                          />
+                          <label className="text-[9px] font-bold uppercase text-plt-text-muted mb-1 block">Identifier</label>
+                          <input type="text" value={edit.name} onChange={e => setEditFields(p => ({ ...p, [m.id]: { ...p[m.id], name: e.target.value } }))} onBlur={() => patchModel(m.id)} className="w-full h-8 px-2 font-mono text-[10px]" />
                         </div>
                         <div>
-                          <label className="text-[9px] font-semibold uppercase tracking-wider text-plt-muted block mb-1">Description</label>
-                          <textarea
-                            value={edit.description}
-                            onChange={e => setEditFields(p => ({ ...p, [m.id]: { ...p[m.id], description: e.target.value } }))}
-                            onBlur={() => patchModel(m.id)}
-                            placeholder="e.g. Full market, 1,847 new builds"
-                            rows={2}
-                            className="w-full px-2 py-1.5 text-[11px] bg-plt-panel border border-plt-border rounded focus:border-plt-accent outline-none text-plt-primary resize-none"
-                          />
+                          <label className="text-[9px] font-bold uppercase text-plt-text-muted mb-1 block">Description</label>
+                          <input type="text" value={edit.description} onChange={e => setEditFields(p => ({ ...p, [m.id]: { ...p[m.id], description: e.target.value } }))} onBlur={() => patchModel(m.id)} className="w-full h-8 px-2 font-mono text-[10px]" />
                         </div>
                       </div>
-
-                      {/* Feature Importances */}
                       {importances && (
-                        <div>
-                          <div className="text-[9px] font-semibold uppercase tracking-wider text-plt-muted mb-2">Feature Importances</div>
-                          <div className="space-y-1.5">
-                            {importances.map(([feat, imp]) => (
-                              <div key={feat} className="flex items-center gap-2">
-                                <span className="text-[10px] text-plt-muted font-mono w-36 flex-shrink-0 truncate">{feat}</span>
-                                <div className="flex-1 h-2 bg-plt-border/40 rounded-full overflow-hidden">
-                                  <div
-                                    className="h-full bg-plt-accent rounded-full"
-                                    style={{ width: `${(imp * 100).toFixed(0)}%` }}
-                                  />
-                                </div>
-                                <span className="text-[10px] font-mono text-plt-primary w-8 text-right">{(imp * 100).toFixed(0)}%</span>
+                        <div className="space-y-1.5">
+                          <div className="text-[9px] font-bold uppercase text-plt-text-muted mb-2 tracking-widest">Model Decision Weights</div>
+                          {importances.map(([feat, imp]) => (
+                            <div key={feat} className="flex items-center gap-3">
+                              <span className="text-[9px] font-bold text-plt-text-secondary w-24 uppercase truncate font-mono">{feat}</span>
+                              <div className="flex-1 h-1 bg-slate-100 rounded-full overflow-hidden">
+                                <div className="h-full bg-plt-accent" style={{ width: `${(imp * 100).toFixed(0)}%` }} />
                               </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Hyperparameters */}
-                      {(ctx.n_estimators || ctx.train_rows) && (
-                        <div>
-                          <div className="text-[9px] font-semibold uppercase tracking-wider text-plt-muted mb-1.5">Hyperparameters</div>
-                          <div className="flex flex-wrap gap-x-4 gap-y-1 text-[10px] font-mono text-plt-muted">
-                            {ctx.n_estimators && <span>Estimators: <span className="text-plt-primary">{ctx.n_estimators}</span></span>}
-                            {ctx.max_depth && <span>Depth: <span className="text-plt-primary">{ctx.max_depth}</span></span>}
-                            {ctx.learning_rate && <span>LR: <span className="text-plt-primary">{ctx.learning_rate}</span></span>}
-                            {ctx.train_rows && <span>Train: <span className="text-plt-primary">{ctx.train_rows.toLocaleString()}</span></span>}
-                            {ctx.test_rows && <span>Test: <span className="text-plt-primary">{ctx.test_rows.toLocaleString()}</span></span>}
-                          </div>
+                              <span className="text-[9px] font-mono font-bold text-plt-text-primary">{(imp * 100).toFixed(0)}%</span>
+                            </div>
+                          ))}
                         </div>
                       )}
                     </div>
@@ -640,39 +532,14 @@ function IntelControls({ mlStatus, onJob }) {
         )}
       </div>
 
-      {/* Train */}
-      {showTrainModal && (
-        <TrainModal
-          onClose={() => setShowTrainModal(false)}
-          onJob={jobId => { onJob(jobId); }}
-        />
-      )}
-      <div className="space-y-3 pt-2 border-t border-plt-border/50">
-        <div className="flex justify-between items-center">
-          <Label>Train New Model</Label>
-          <StatusDot status={mlStatus?.train?.status} />
-        </div>
-        <Btn onClick={() => setShowTrainModal(true)}>
-          Train ML Model
-        </Btn>
+      <div className="grid grid-cols-2 gap-3 pt-2 border-t border-plt-border/50">
+        <Btn onClick={() => setShowTrainModal(true)} variant="primary">New Train</Btn>
+        <Btn onClick={() => trigger("score")} disabled={running.score || !activeModel} variant="outline">ML Score</Btn>
       </div>
+      <Btn variant="ghost" onClick={() => setShowWeightedScoringModal(true)}>Weighted Score Algorithm</Btn>
 
-      {/* Score */}
-      <div className="space-y-3 border-t border-plt-border/50 pt-2">
-        <div className="flex justify-between items-center">
-          <Label>Score Properties</Label>
-          <StatusDot status={mlStatus?.score?.status} />
-        </div>
-        {activeModel && (
-          <div className="text-[9px] text-plt-muted font-mono bg-plt-bg/50 border border-plt-border/50 rounded px-2 py-1.5">
-            Using Model #{activeModel.id} · R² {parseFloat(activeModel.r2_score || 0).toFixed(4)}
-          </div>
-        )}
-        <Btn disabled={running.score || !activeModel} onClick={() => trigger("score")}>
-          {running.score ? "Scoring…" : activeModel ? "Score with Active Model" : "No Active Model"}
-        </Btn>
-      </div>
-
+      {showTrainModal && <TrainModal onClose={() => setShowTrainModal(false)} onJob={onJob} />}
+      {showWeightedModal && <WeightedScoringModal onClose={() => setShowWeightedScoringModal(false)} onJob={onJob} />}
     </div>
   );
 }
@@ -682,54 +549,65 @@ function IntelControls({ mlStatus, onJob }) {
 export default function Operations() {
   const [mlStatus, setMlStatus] = useState(null);
   const [scrapeStatus, setScrapeStatus] = useState([]);
+  const [jobs, setJobs] = useState([]);
   const [activeJobId, setActiveJobId] = useState(null);
   const [activeTab, setActiveTab] = useState("controls");
-  const pollRef = useRef(null);
 
   const fetchStatus = useCallback(async () => {
     try {
-      const [ml, sc] = await Promise.all([
+      const [ml, sc, jb] = await Promise.all([
         fetch(`${API}/api/ml/status`).then(r => r.json()),
         fetch(`${API}/api/scrape/status`).then(r => r.json()),
+        fetch(`${API}/api/jobs`).then(r => r.json()),
       ]);
-      setMlStatus(ml); setScrapeStatus(sc.scrape_status || []);
+      setMlStatus(ml); 
+      setScrapeStatus(sc.scrape_status || []);
+      setJobs(jb);
     } catch {}
   }, []);
 
   useEffect(() => {
-    fetchStatus(); pollRef.current = setInterval(fetchStatus, 10000);
-    return () => clearInterval(pollRef.current);
+    fetchStatus();
+    const id = setInterval(fetchStatus, 4000);
+    return () => clearInterval(id);
   }, [fetchStatus]);
 
   return (
-    <div className="flex flex-col h-full overflow-hidden bg-plt-bg text-plt-primary">
-      <div className="flex-shrink-0 p-3 sm:p-6"><HUD mlStatus={mlStatus} scrapeStatus={scrapeStatus} /></div>
+    <div className="flex flex-col h-full overflow-hidden bg-plt-bg text-plt-text-primary">
+      <div className="flex-shrink-0 p-4 md:p-6">
+        <HUD 
+          mlStatus={mlStatus} 
+          scrapeStatus={scrapeStatus} 
+        />
+      </div>
 
-      {/* Mobile tab bar */}
-      <div className="lg:hidden flex-shrink-0 flex border-b border-plt-border bg-plt-panel px-3">
-        {[{ id: "controls", label: "Controls" }, { id: "console", label: "Console" }].map(t => (
-          <button
-            key={t.id}
-            onClick={() => setActiveTab(t.id)}
-            className={`flex-1 py-2.5 text-xs font-semibold transition-all border-b-2 ${
-              activeTab === t.id
-                ? "border-plt-accent text-plt-accent"
-                : "border-transparent text-plt-muted hover:text-plt-primary"
-            }`}
-          >
-            {t.label}
-          </button>
+      <div className="lg:hidden flex-shrink-0 flex border-b border-plt-border bg-white px-3">
+        {[{ id: "controls", label: "CONTROLS" }, { id: "console", label: "TELEMETRY" }].map(t => (
+          <button key={t.id} onClick={() => setActiveTab(t.id)} className={`flex-1 py-3 text-[10px] font-black transition-all border-b-2 ${activeTab === t.id ? "border-plt-accent text-plt-accent" : "border-transparent text-plt-text-muted"}`}>{t.label}</button>
         ))}
       </div>
 
-      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden px-3 pb-3 sm:px-6 sm:pb-6 pt-3 gap-4 sm:gap-6">
-        <div className={`w-full lg:w-[380px] flex flex-col gap-4 sm:gap-6 overflow-y-auto no-scrollbar pb-4 lg:pb-0 ${activeTab === "console" ? "hidden lg:flex" : "flex"}`}>
-          <Panel title="Data Collection" tag="PROXIED"><IngestionControls onJob={setActiveJobId} /></Panel>
-          <Panel title="ML Model" tag="XGBOOST"><IntelControls mlStatus={mlStatus} onJob={setActiveJobId} /></Panel>
-          <div className="border border-plt-danger/20 rounded p-4 sm:p-5 bg-plt-danger/5"><h3 className="text-xs font-semibold text-plt-danger mb-3">Reset Database</h3><button onClick={() => window.confirm("This clears all properties, ML scores, and scrape history from the database.\n\nYour Docker volume is NOT deleted — data only disappears permanently if you run 'docker compose down -v'. Continue?") && fetch(`${API}/api/scrape/reset`, { method: "POST" }).then(() => window.location.reload())} className="w-full text-xs font-medium text-plt-danger hover:bg-plt-danger hover:text-white border border-plt-danger/50 py-2.5 rounded transition-all">Wipe All Data</button></div>
+      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden px-4 pb-4 md:px-6 md:pb-6 pt-2 gap-6">
+        <div className={`w-full lg:w-[400px] flex flex-col gap-6 overflow-y-auto no-scrollbar pb-4 lg:pb-0 ${activeTab === "console" ? "hidden lg:flex" : "flex"}`}>
+          <Panel title="Data Collection" tag="SCRAPER"><IngestionControls onJob={setActiveJobId} /></Panel>
+          <Panel title="Intel Engine" tag="XGBOOST"><IntelControls mlStatus={mlStatus} onJob={setActiveJobId} /></Panel>
+          
+          <div className="border border-plt-danger/20 rounded-md p-5 bg-white shadow-sm flex flex-col gap-3">
+            <div className="flex items-center gap-2">
+              <div className="w-1.5 h-1.5 bg-plt-danger rounded-full" />
+              <span className="text-[11px] font-bold uppercase tracking-widest text-plt-danger">System Reset</span>
+            </div>
+            <p className="text-[10px] font-medium text-plt-text-secondary leading-tight uppercase tracking-tighter">Clears all properties, scores, and history.</p>
+            <button onClick={() => window.confirm("PERMANENT DATA WIPE. CONTINUE?") && fetch(`${API}/api/scrape/reset`, { method: "POST" }).then(() => window.location.reload())} className="w-full text-[11px] font-black uppercase tracking-widest bg-plt-danger text-white hover:bg-plt-danger-hover py-3 rounded transition-all">Wipe Database</button>
+          </div>
         </div>
-        <div className={`flex-1 min-h-[280px] sm:min-h-[400px] ${activeTab === "controls" ? "hidden lg:block" : "flex flex-col"}`}>
-          <JobConsole newJobId={activeJobId} onClear={() => setActiveJobId(null)} />
+        <div className={`flex-1 min-h-[300px] ${activeTab === "controls" ? "hidden lg:block" : "flex flex-col"}`}>
+          <JobConsole 
+            selectedId={activeJobId}
+            setSelectedId={setActiveJobId}
+            jobs={jobs}
+            onClear={() => setActiveJobId(null)} 
+          />
         </div>
       </div>
     </div>

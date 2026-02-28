@@ -36,7 +36,7 @@ router.get("/status", async (req, res) => {
       };
     }
 
-    res.json({ train: runs["train"] || null, score: runs["score"] || null, counts });
+    res.json({ train: runs["train"] || null, score: runs["score"] || null, score_weighted: runs["score_weighted"] || null, counts });
   } catch (err) {
     console.error("[ml/status] Error:", err.message);
     res.status(500).json({ error: "Failed to fetch ML status" });
@@ -73,6 +73,25 @@ router.post("/score", async (req, res) => {
     res.status(workerRes.status).json(data);
   } catch (err) {
     console.error("[ml/score] Worker unreachable:", err.message);
+    res.status(503).json({ error: "data-worker unavailable", detail: err.message });
+  }
+});
+
+/**
+ * POST /api/ml/score-weighted
+ * Proxies to data-worker to run ml_model.py --score-weighted with weights
+ */
+router.post("/score-weighted", async (req, res) => {
+  try {
+    const workerRes = await fetch(`${WORKER_URL}/run/score-weighted`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(req.body),
+    });
+    const data = await workerRes.json();
+    res.status(workerRes.status).json(data);
+  } catch (err) {
+    console.error("[ml/score-weighted] Worker unreachable:", err.message);
     res.status(503).json({ error: "data-worker unavailable", detail: err.message });
   }
 });
@@ -159,6 +178,23 @@ router.post("/models/:id/activate", async (req, res) => {
   } catch (err) {
     console.error("[ml/models/activate] Error:", err.message);
     res.status(500).json({ error: "Failed to activate model" });
+  }
+});
+
+/**
+ * DELETE /api/ml/models/:id
+ * Deletes a model run and its associated file via data-worker.
+ */
+router.delete("/models/:id", async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) return res.status(400).json({ error: "Invalid model id" });
+  try {
+    const workerRes = await fetch(`${WORKER_URL}/models/${id}`, { method: "DELETE" });
+    const data = await workerRes.json();
+    res.status(workerRes.status).json(data);
+  } catch (err) {
+    console.error("[ml/models/delete] Worker unreachable:", err.message);
+    res.status(503).json({ error: "data-worker unavailable", detail: err.message });
   }
 });
 

@@ -176,6 +176,7 @@ def fetch_sold_mls_ids() -> set[str]:
 def fetch_sold_for_training() -> list[dict]:
     query = """
         SELECT p.id, p.mls_id, p.zip, p.city, p.sqft, p.lot_sqft, p.year_built,
+               p.lat, p.lng,
                p.list_price, p.sold_price, p.sold_date,
                p.construction_cost_per_sqft, zi.median_household_income
         FROM properties p
@@ -190,7 +191,9 @@ def fetch_sold_for_training() -> list[dict]:
 
 def fetch_for_sale_for_scoring() -> list[dict]:
     query = """
-        SELECT p.id, p.mls_id, p.zip, p.sqft, p.lot_sqft, p.year_built, p.list_price, p.sold_price, 
+        SELECT p.id, p.mls_id, p.zip, p.sqft, p.lot_sqft, p.year_built, 
+               p.lat, p.lng,
+               p.list_price, p.sold_price, 
                p.construction_cost_per_sqft, zi.median_household_income
         FROM properties p
         LEFT JOIN zip_income zi ON p.zip = zi.zip
@@ -276,6 +279,16 @@ def set_active_model(run_id: int):
     with get_cursor() as cur:
         cur.execute("UPDATE model_runs SET is_active = FALSE WHERE run_type = 'train'")
         cur.execute("UPDATE model_runs SET is_active = TRUE WHERE id = %s", (run_id,))
+
+
+def delete_model_run(run_id: int) -> str | None:
+    """Deletes a model run record and returns the model_path so the file can be deleted."""
+    with get_cursor() as cur:
+        cur.execute("SELECT model_path FROM model_runs WHERE id = %s", (run_id,))
+        row = cur.fetchone()
+        model_path = row["model_path"] if row else None
+        cur.execute("DELETE FROM model_runs WHERE id = %s", (run_id,))
+        return model_path
 
 
 def fetch_model_status() -> dict:

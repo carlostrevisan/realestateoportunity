@@ -18,25 +18,25 @@ const COLOR_MAP = {
   green: "#10b981", 
   yellow: "#f59e0b",
   red: "#ef4444",
-  gray: "#a1a1aa",
+  gray: "#94a3b8",
 };
 
-export default function OpportunityMap({ filters, roiFilters, onSelectProperty, selectedId, comparables = [], focusCoord = null }) {
+export default function OpportunityMap({ filters, roiFilters, onSelectProperty, selectedId, comparables = [], focusCoord = null, newBuilds = [] }) {
   const mapRef = useRef(null);
   const mapInstance = useRef(null);
   const markersLayer = useRef(L.layerGroup());
   const comparablesLayer = useRef(L.layerGroup());
+  const newBuildsLayer = useRef(L.layerGroup());
+  const compMarkersMap = useRef({});
   
   const [geojson, setGeojson] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [isDark, setIsDark] = useState(document.documentElement.classList.contains("dark"));
 
-  // 1. Initialize Map with size validation
+  // 1. Initialize Map
   useEffect(() => {
     if (mapInstance.current) return;
 
-    // Small delay to ensure parent styles are applied
     const timer = setTimeout(() => {
       if (!mapRef.current) return;
       
@@ -53,25 +53,28 @@ export default function OpportunityMap({ filters, roiFilters, onSelectProperty, 
       L.control.zoom({ position: 'bottomright' }).addTo(map);
       markersLayer.current.addTo(map);
       comparablesLayer.current.addTo(map);
+      newBuildsLayer.current.addTo(map);
       mapInstance.current = map;
 
-      // Force initial tile load
-      updateTiles(map, document.documentElement.classList.contains("dark"));
+      // Assertive Light Tactical Tiles
+      L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png", {
+        attribution: '&copy; CARTO',
+        subdomains: 'abcd',
+        maxZoom: 20,
+        updateWhenIdle: true,
+        keepBuffer: 2
+      }).addTo(map);
       
-      // Force size update immediately
       map.invalidateSize();
     }, 300);
 
-    // Robust resize handling
     const resizeObserver = new ResizeObserver(() => {
       if (mapInstance.current) {
         mapInstance.current.invalidateSize();
       }
     });
 
-    if (mapRef.current) {
-      resizeObserver.observe(mapRef.current);
-    }
+    if (mapRef.current) resizeObserver.observe(mapRef.current);
 
     return () => {
       clearTimeout(timer);
@@ -83,43 +86,7 @@ export default function OpportunityMap({ filters, roiFilters, onSelectProperty, 
     };
   }, []);
 
-  const updateTiles = (map, dark) => {
-    if (!map) return;
-    
-    // Clear existing tiles
-    map.eachLayer((layer) => {
-      if (layer instanceof L.TileLayer) map.removeLayer(layer);
-    });
-
-    const tileUrl = dark 
-      ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png"
-      : "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png";
-
-    L.tileLayer(tileUrl, {
-      attribution: '&copy; CARTO',
-      subdomains: 'abcd',
-      maxZoom: 20,
-      updateWhenIdle: true,
-      keepBuffer: 2
-    }).addTo(map);
-  };
-
-  // 2. Handle Theme Changes
-  useEffect(() => {
-    const obs = new MutationObserver(() => {
-      const dark = document.documentElement.classList.contains("dark");
-      setIsDark(dark);
-      if (mapInstance.current) {
-        updateTiles(mapInstance.current, dark);
-      }
-    });
-    
-    obs.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
-    
-    return () => obs.disconnect();
-  }, []);
-
-  // 3. Fetch Data
+  // 2. Fetch Data
   const queryString = useMemo(() => {
     const p = new URLSearchParams();
     if (filters.city) p.set("city", filters.city);
@@ -140,7 +107,15 @@ export default function OpportunityMap({ filters, roiFilters, onSelectProperty, 
       .finally(() => setLoading(false));
   }, [queryString]);
 
-  // 4. Update Markers & Selection
+  // 3. Update Markers
+  const visibleCount = useMemo(() => {
+    if (!geojson?.features) return 0;
+    return geojson.features.filter(f => {
+      const colorKey = f.properties.roi_color || 'gray';
+      return !roiFilters || roiFilters[colorKey];
+    }).length;
+  }, [geojson, roiFilters]);
+
   useEffect(() => {
     if (!mapInstance.current || !geojson) return;
     const map = mapInstance.current;
@@ -159,10 +134,7 @@ export default function OpportunityMap({ filters, roiFilters, onSelectProperty, 
       const p = f.properties;
       const colorKey = p.roi_color || 'gray';
       
-      // Filter by ROI selection (if roiFilters is provided)
-      if (roiFilters && !roiFilters[colorKey]) {
-        return;
-      }
+      if (roiFilters && !roiFilters[colorKey]) return;
 
       validCoords.push([lat, lng]);
       const color = COLOR_MAP[colorKey] || COLOR_MAP.gray;
@@ -171,7 +143,7 @@ export default function OpportunityMap({ filters, roiFilters, onSelectProperty, 
       const marker = L.circleMarker([lat, lng], {
         radius: isSelected ? 10 : 7,
         fillColor: color,
-        color: isSelected ? 'white' : color,
+        color: isSelected ? '#000' : color,
         weight: isSelected ? 3 : 1,
         opacity: 1,
         fillOpacity: 0.8
@@ -179,73 +151,66 @@ export default function OpportunityMap({ filters, roiFilters, onSelectProperty, 
 
       const cityDisplay = p.city ? p.city.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : '';
       const zillowListingUrl = `https://www.zillow.com/homes/${encodeURIComponent(`${p.address}, ${cityDisplay}, FL ${p.zip}`)}_rb/`;
-      const zillowAreaUrl = `https://www.zillow.com/homes/${p.zip}_rb/`;
-
+      
       const popupHtml = `
-        <div style="min-width: 200px; font-family: sans-serif; color: #333; padding: 4px;">
-          <div style="font-weight: 600; border-bottom: 1px solid #eee; padding-bottom: 6px; margin-bottom: 8px; font-size: 12px;">
+        <div style="min-width: 200px; font-family: 'Plus Jakarta Sans', sans-serif; color: #0f172a; padding: 4px;">
+          <div style="font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px; margin-bottom: 8px; font-size: 11px;">
             ${p.address}
           </div>
-          <div style="color: #666; font-size: 11px; margin-bottom: 10px;">
+          <div style="color: #64748b; font-size: 10px; font-weight: 700; text-transform: uppercase; margin-bottom: 10px;">
             ${cityDisplay}, FL ${p.zip}
           </div>
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; font-size: 12px; margin-bottom: 12px; background: #f9f9f9; padding: 8px; border-radius: 4px;">
-            <span style="color: #888;">Est. Profit</span>
-            <span style="color: ${color}; font-weight: 600;">$${p.opportunity_result?.toLocaleString() || '0'}</span>
-            <span style="color: #888;">Size</span>
-            <span>${p.sqft?.toLocaleString() || 'N/A'} sqft</span>
-            <span style="color: #888;">Built</span>
-            <span>${p.year_built}</span>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; font-size: 11px; margin-bottom: 12px; background: #f8fafc; padding: 10px; border-radius: 4px; border: 1px solid #e2e8f0;">
+            <span style="color: #64748b; font-weight: 600;">EST. PROFIT</span>
+            <span style="color: ${color}; font-weight: 800;">$${p.opportunity_result?.toLocaleString() || '0'}</span>
+            <span style="color: #64748b; font-weight: 600;">LIVING AREA</span>
+            <span style="font-weight: 700;">${p.sqft?.toLocaleString() || 'N/A'} SQFT</span>
           </div>
-
-          <div style="display: flex; flex-direction: column; gap: 4px;">
-            <a href="${zillowListingUrl}" target="_blank" rel="noopener noreferrer"
-               style="display: block; text-align: center; background: #3b82f6; color: white; text-decoration: none; padding: 7px; border-radius: 4px; font-size: 11px; font-weight: 600;">
-               Find on Zillow
-            </a>
-            <a href="${zillowAreaUrl}" target="_blank" rel="noopener noreferrer"
-               style="display: block; text-align: center; border: 1px solid #3b82f6; color: #3b82f6; text-decoration: none; padding: 6px; border-radius: 4px; font-size: 11px; font-weight: 600;">
-               Browse Area
-            </a>
-          </div>
+          <a href="${zillowListingUrl}" target="_blank" rel="noopener noreferrer"
+             style="display: block; text-align: center; background: #2563eb; color: white; text-decoration: none; padding: 8px; border-radius: 4px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em;">
+             View on Zillow
+          </a>
         </div>
       `;
 
       marker.bindPopup(popupHtml);
-      
       marker.on('click', (e) => {
         L.DomEvent.stopPropagation(e);
         if (onSelectProperty) onSelectProperty(p);
         map.setView(e.target.getLatLng(), Math.max(map.getZoom(), 15));
       });
-
       marker.addTo(layer);
     });
 
-    // Auto-zoom only if not currently selecting a property
     if (validCoords.length > 0 && !selectedId) {
       const bounds = L.latLngBounds(validCoords);
       map.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
     }
   }, [geojson, roiFilters, selectedId]);
 
-  // 5. Pan to focusCoord when requested
+  // 4. Pan to focusCoord
   useEffect(() => {
     if (focusCoord && mapInstance.current) {
-      mapInstance.current.setView(focusCoord, 16);
+      const map = mapInstance.current;
+      map.setView(focusCoord, 16);
+      
+      const key = `${focusCoord[0]},${focusCoord[1]}`;
+      const marker = compMarkersMap.current[key];
+      if (marker) {
+        marker.openPopup();
+      }
     }
   }, [focusCoord]);
 
-  // 6. Render comparable markers
+  // 5. Comparable markers
   useEffect(() => {
     const layer = comparablesLayer.current;
     layer.clearLayers();
+    compMarkersMap.current = {};
     if (!mapInstance.current) return;
 
     comparables.forEach(comp => {
       if (!comp.lat || !comp.lng) return;
-      if (!isValidFL(comp.lat, comp.lng)) return;
-
       const isNew = comp.year_built >= 2015;
       const fillColor = isNew ? "#06b6d4" : "#8b5cf6";
 
@@ -255,34 +220,106 @@ export default function OpportunityMap({ filters, roiFilters, onSelectProperty, 
         color: "#fff",
         weight: 2,
         opacity: 1,
-        fillOpacity: 0.85,
+        fillOpacity: 0.9,
       });
 
-      const soldDateStr = comp.sold_date
-        ? new Date(comp.sold_date).toLocaleDateString("en-US", { month: "short", year: "numeric" })
-        : "N/A";
-      const newBadge = isNew ? " · <strong>New Build</strong>" : "";
-      marker.bindPopup(`
-        <div style="font-family:sans-serif;font-size:12px;min-width:180px;padding:2px">
-          <div style="font-weight:600;margin-bottom:4px">${comp.address} · ${comp.city || ""}</div>
-          <div>Sold <strong>$${comp.sold_price?.toLocaleString()}</strong> · ${soldDateStr}</div>
-          <div style="color:#666;margin-top:2px">${comp.sqft?.toLocaleString()} sqft · Built ${comp.year_built}${newBadge}</div>
-        </div>
-      `);
+      const cityDisplay = comp.city ? comp.city.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : '';
+      const zillowUrl = `https://www.zillow.com/homes/${encodeURIComponent(`${comp.address}, ${cityDisplay}, FL ${comp.zip}`)}_rb/`;
 
+      const popupHtml = `
+        <div style="min-width: 180px; font-family: 'Plus Jakarta Sans', sans-serif; color: #0f172a; padding: 4px;">
+          <div style="font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px; margin-bottom: 8px; font-size: 10px;">
+            ${isNew ? 'NEW BUILD COMP' : 'OLDER COMP'}
+          </div>
+          <div style="font-weight: 700; font-size: 12px; margin-bottom: 2px;">${comp.address}</div>
+          <div style="color: #64748b; font-size: 10px; font-weight: 600; margin-bottom: 10px;">
+            ${cityDisplay}, FL ${comp.zip}
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; font-size: 11px; margin-bottom: 12px; background: #f8fafc; padding: 10px; border-radius: 4px; border: 1px solid #e2e8f0;">
+            <span style="color: #64748b; font-weight: 600;">SALE PRICE</span>
+            <span style="font-weight: 800;">$${comp.sold_price?.toLocaleString() || '—'}</span>
+            <span style="color: #64748b; font-weight: 600;">SIZE</span>
+            <span style="font-weight: 700;">${comp.sqft?.toLocaleString() || '—'} SQFT</span>
+          </div>
+          <a href="${zillowUrl}" target="_blank" rel="noopener noreferrer"
+             style="display: block; text-align: center; background: ${fillColor}; color: white; text-decoration: none; padding: 8px; border-radius: 4px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em;">
+             Find on Zillow
+          </a>
+        </div>
+      `;
+
+      marker.bindPopup(popupHtml);
       marker.addTo(layer);
+      
+      // Store marker in map by coordinate key or some stable identifier
+      const key = `${comp.lat},${comp.lng}`;
+      compMarkersMap.current[key] = marker;
     });
   }, [comparables]);
 
+  // 6. Active New Builds markers (Market Context)
+  useEffect(() => {
+    const layer = newBuildsLayer.current;
+    layer.clearLayers();
+    if (!mapInstance.current) return;
+
+    newBuilds.forEach(f => {
+      const coords = f.geometry.coordinates;
+      if (!coords || coords.length < 2) return;
+      const [lng, lat] = coords;
+      const p = f.properties;
+
+      const marker = L.circleMarker([lat, lng], {
+        radius: 5,
+        fillColor: "#3b82f6",
+        color: "#fff",
+        weight: 1,
+        opacity: 1,
+        fillOpacity: 0.7,
+      });
+
+      const cityDisplay = p.city ? p.city.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : '';
+      const zillowUrl = `https://www.zillow.com/homes/${encodeURIComponent(`${p.address}, ${cityDisplay}, FL ${p.zip}`)}_rb/`;
+
+      const popupHtml = `
+        <div style="min-width: 180px; font-family: 'Plus Jakarta Sans', sans-serif; color: #0f172a; padding: 4px;">
+          <div style="font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px; margin-bottom: 8px; font-size: 10px; color: #3b82f6;">
+            MARKET CONTEXT (NEW BUILD)
+          </div>
+          <div style="font-weight: 700; font-size: 12px; margin-bottom: 2px;">${p.address}</div>
+          <div style="color: #64748b; font-size: 10px; font-weight: 600; margin-bottom: 10px;">
+            ${cityDisplay}, FL ${p.zip}
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; font-size: 11px; margin-bottom: 12px; background: #f8fafc; padding: 10px; border-radius: 4px; border: 1px solid #e2e8f0;">
+            <span style="color: #64748b; font-weight: 600;">LIST PRICE</span>
+            <span style="font-weight: 800;">$${p.list_price?.toLocaleString() || '—'}</span>
+            <span style="color: #64748b; font-weight: 600;">SIZE</span>
+            <span style="font-weight: 700;">${p.sqft?.toLocaleString() || '—'} SQFT</span>
+          </div>
+          <a href="${zillowUrl}" target="_blank" rel="noopener noreferrer"
+             style="display: block; text-align: center; background: #3b82f6; color: white; text-decoration: none; padding: 8px; border-radius: 4px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em;">
+             View on Zillow
+          </a>
+        </div>
+      `;
+
+      marker.bindPopup(popupHtml);
+      marker.addTo(layer);
+    });
+  }, [newBuilds]);
+
   return (
     <div className="w-full h-full relative bg-plt-bg overflow-hidden flex flex-col">
-      {/* Overlay UI */}
-      <div className="absolute top-3 left-3 right-3 z-[1000] flex items-center justify-between pointer-events-none">
-        <div className="flex gap-2 pointer-events-auto">
-          <div className="bg-white dark:bg-plt-panel border border-plt-border px-3 py-1.5 rounded shadow-lg text-xs flex items-center gap-2">
-            <div className={`w-2 h-2 rounded-full flex-shrink-0 ${loading ? 'bg-plt-accent animate-pulse' : 'bg-plt-accent'}`} />
-            <span className="text-plt-primary font-medium">
-              {loading ? "Loading..." : `${geojson?.features?.length || 0} properties`}
+      <div className="absolute top-4 left-4 right-4 z-[1000] flex items-center justify-between pointer-events-none">
+        <div className="flex gap-3 pointer-events-auto">
+          <div className="bg-white border border-plt-border px-4 py-2 rounded shadow-sm text-[10px] font-bold uppercase tracking-widest flex items-center gap-2">
+            <div className={`w-2 h-2 rounded-full ${loading ? 'bg-plt-accent animate-pulse' : 'bg-plt-accent'}`} />
+            <span className="text-plt-text-primary">
+              {loading ? "Syncing..." : (() => {
+                const total = geojson?.meta?.total || 0;
+                const showing = visibleCount;
+                return total > showing ? `${total.toLocaleString()} found (Showing ${showing.toLocaleString()})` : `${showing.toLocaleString()} Properties`;
+              })()}
             </span>
           </div>
           <button
@@ -290,56 +327,39 @@ export default function OpportunityMap({ filters, roiFilters, onSelectProperty, 
               if (onSelectProperty) onSelectProperty(null);
               mapInstance.current?.setView([27.7663, -81.6868], 7);
             }}
-            className="bg-white dark:bg-plt-panel border border-plt-border px-3 py-1.5 rounded shadow-lg text-xs text-plt-secondary hover:text-plt-primary font-medium transition-colors"
+            className="bg-white border border-plt-border px-4 py-2 rounded shadow-sm text-[10px] font-bold uppercase tracking-widest text-plt-text-secondary hover:text-plt-accent transition-all"
           >
-            Reset view
+            Reset Orientation
           </button>
         </div>
 
         {error && (
-          <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/5 text-red-600 dark:text-red-400 px-3 py-1.5 rounded shadow-lg text-xs pointer-events-auto font-medium">
-            {error}
+          <div className="bg-white border border-plt-danger text-plt-danger px-4 py-2 rounded shadow-sm text-[10px] font-bold uppercase tracking-widest pointer-events-auto">
+            Telemetry Error: {error}
           </div>
         )}
       </div>
 
-      {/* Map Container */}
-      <div
-        ref={mapRef}
-        className="flex-1 w-full h-full"
-        style={{ zIndex: 1, backgroundColor: isDark ? '#07090f' : '#f4f4f5' }}
-      />
+      <div ref={mapRef} className="flex-1 w-full h-full" style={{ zIndex: 1, backgroundColor: '#f1f5f9' }} />
 
-      {/* Map Legend */}
-      {comparables.length > 0 && (
-        <div
-          className="absolute bottom-10 right-3 z-[1000] pointer-events-none"
-          style={{ fontSize: "10px", lineHeight: "1.6" }}
-        >
-          <div className="bg-white dark:bg-plt-panel border border-plt-border rounded shadow-lg px-3 py-2 text-plt-primary space-y-0.5">
-            {[
-              { color: "#10b981", label: "> $200k profit" },
-              { color: "#f59e0b", label: "$0–200k" },
-              { color: "#ef4444", label: "Loss" },
-              { color: "#a1a1aa", label: "Unscored" },
-            ].map(({ color, label }) => (
-              <div key={label} className="flex items-center gap-2">
-                <span style={{ color, fontSize: 14 }}>●</span>
-                <span className="text-plt-muted">{label}</span>
-              </div>
-            ))}
-            <div className="border-t border-plt-border/50 my-1" />
-            <div className="flex items-center gap-2">
-              <span style={{ color: "#06b6d4", fontSize: 14 }}>●</span>
-              <span className="text-plt-muted">Comp · New Build</span>
+      <div className="absolute bottom-6 right-4 z-[1000] pointer-events-none">
+        <div className="bg-white border border-plt-border rounded shadow-sm px-4 py-3 space-y-1.5 pointer-events-auto">
+          <div className="text-[9px] font-black uppercase tracking-[0.2em] text-plt-text-muted mb-2 border-b border-plt-border pb-1">Map Key</div>
+          {[
+            { color: "#10b981", label: "High Yield" },
+            { color: "#f59e0b", label: "Mid Yield" },
+            { color: "#ef4444", label: "Negative" },
+            { color: "#3b82f6", label: "Active New Build" },
+            { color: "#06b6d4", label: "Sold New Build" },
+            { color: "#8b5cf6", label: "Older Comp" },
+          ].map(({ color, label }) => (
+            <div key={label} className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
+              <span className="text-[9px] font-bold uppercase tracking-wider text-plt-text-secondary">{label}</span>
             </div>
-            <div className="flex items-center gap-2">
-              <span style={{ color: "#8b5cf6", fontSize: 14 }}>●</span>
-              <span className="text-plt-muted">Comp · Older</span>
-            </div>
-          </div>
+          ))}
         </div>
-      )}
+      </div>
     </div>
   );
 }

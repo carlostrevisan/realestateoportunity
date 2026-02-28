@@ -1,25 +1,9 @@
-import { useState, useEffect } from "react";
 import { BrowserRouter, Routes, Route, NavLink } from "react-router-dom";
 import Dashboard from "./pages/Dashboard.jsx";
 import Operations from "./pages/Operations.jsx";
 import Help from "./pages/Help.jsx";
 
 export default function App() {
-  const [theme, setTheme] = useState(localStorage.getItem("theme") || "light");
-
-  useEffect(() => {
-    if (theme === "dark") {
-      document.documentElement.classList.add("dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-    }
-    localStorage.setItem("theme", theme);
-  }, [theme]);
-
-  const toggleTheme = () => {
-    setTheme(prev => (prev === "light" ? "dark" : "light"));
-  };
-
   const navClass = ({ isActive }) =>
     `px-3 sm:px-4 py-2 text-xs font-semibold transition-all border-b-2 flex items-center justify-center whitespace-nowrap ${
       isActive
@@ -44,19 +28,6 @@ export default function App() {
             <NavLink to="/ops" className={navClass}>Data Engine</NavLink>
             <NavLink to="/help" className={navClass}>Guide</NavLink>
           </div>
-
-          <button
-            onClick={toggleTheme}
-            className="ml-auto p-2 text-plt-muted hover:text-plt-accent transition-colors flex items-center gap-3 group"
-            title={`Switch to ${theme === "light" ? "dark" : "light"} mode`}
-          >
-            <span className="hidden sm:block text-xs font-medium opacity-0 group-hover:opacity-100 transition-opacity">
-              {theme === "light" ? "Dark" : "Light"}
-            </span>
-            <div className="w-8 h-4 bg-plt-border rounded-full relative flex items-center px-1">
-              <div className={`w-2.5 h-2.5 bg-plt-accent rounded-full transition-all duration-300 ${theme === 'dark' ? 'translate-x-3.5' : 'translate-x-0'}`} />
-            </div>
-          </button>
         </nav>
 
         <main className="flex-1 flex flex-col overflow-hidden relative">

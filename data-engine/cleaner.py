@@ -115,8 +115,8 @@ def normalize_for_db(df: pd.DataFrame, default_zip: str = None) -> list[dict]:
         "sqft": _find_col(df, ["sqft", "square_feet", "living_sqft"]),
         "lot_sqft": _find_col(df, ["lot_sqft", "lot_size", "lot_square_feet"]),
         "list_price": _find_col(df, ["list_price", "price"]),
-        "sold_price": _find_col(df, ["sold_price", "close_price"]),
-        "sold_date": _find_col(df, ["sold_date", "close_date", "date_sold"]),
+        "sold_price": _find_col(df, ["sold_price", "close_price", "last_sold_price"]),
+        "sold_date": _find_col(df, ["sold_date", "close_date", "date_sold", "last_sold_date"]),
         "property_type": _find_col(df, ["style", "property_type", "home_type", "type"]),
     }
 

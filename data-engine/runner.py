@@ -9,6 +9,7 @@ Routes:
   POST /run/scrape    { market, type, start?, end? }
   POST /run/train     {}
   POST /run/score     {}
+  POST /run/score-weighted { weights }
   POST /jobs/:id/stop stop a running job
   GET  /jobs/:id      returns { status, logs, started_at, completed_at }
   GET  /jobs          returns list of recent jobs
@@ -21,6 +22,7 @@ import threading
 import uuid
 import subprocess
 import signal
+import json
 from datetime import datetime, timezone
 from collections import OrderedDict
 
@@ -226,6 +228,16 @@ def run_score():
     return jsonify({"job_id": job_id, "status": "started"})
 
 
+@app.post("/run/score-weighted")
+def run_score_weighted():
+    body = request.get_json(silent=True) or {}
+    weights = body.get("weights", {})
+    cmd = [sys.executable, "ml_model.py", "--score-weighted", "--weights", json.dumps(weights)]
+    job_id = _make_job("score_weighted", {"weights": weights})
+    _spawn(job_id, cmd)
+    return jsonify({"job_id": job_id, "status": "started"})
+
+
 @app.post("/run/census")
 def run_census():
     job_id = _make_job("census")
@@ -242,6 +254,20 @@ def reset_data():
             os.remove(csv_path)
             return jsonify({"status": "ok", "message": "CSV deleted"})
         return jsonify({"status": "ok", "message": "No CSV found to delete"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.delete("/models/<int:run_id>")
+def delete_model(run_id):
+    """Deletes a model run and its associated file."""
+    try:
+        import db
+        model_path = db.delete_model_run(run_id)
+        if model_path and os.path.exists(model_path):
+            os.remove(model_path)
+            return jsonify({"status": "ok", "message": f"Model {run_id} and file deleted"})
+        return jsonify({"status": "ok", "message": f"Model {run_id} deleted (no file found)"})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

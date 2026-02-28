@@ -4,62 +4,40 @@
 @tailwind utilities;
 
 /*
-  PALANTIR-INSPIRED DESIGN PALETTE
-  Modern, readable, professional
+  ASERTIVE TACTICAL DESIGN PALETTE
+  Single theme mode: High-contrast light tactical
 */
 
 :root {
-  /* Light Mode */
-  --plt-bg: #f5f7fb;
-  --plt-panel: #edf0f7;
+  /* Core Brand Colors */
+  --plt-bg: #f8fafc;
+  --plt-panel: #ffffff;
   --plt-surface: #ffffff;
-  --plt-border: #d1d8e8;
-  --plt-hover: #e4e9f4;
+  --plt-border: #e2e8f0;
+  --plt-hover: #f1f5f9;
 
-  --plt-accent: #2563eb;
-  --plt-accent-glow: rgba(37, 99, 235, 0.12);
+  /* Assertive Action Colors */
+  --plt-accent: #2563eb;        /* Primary Blue */
+  --plt-accent-hover: #1d4ed8;
+  
+  --plt-success: #059669;       /* Ingestion/Sync Green */
+  --plt-success-hover: #047857;
+  
+  --plt-danger: #e11d48;        /* Destructive Red */
+  --plt-danger-hover: #be123c;
+  
+  --plt-warning: #d97706;       /* Warning/Pending Amber */
 
+  /* Text Stack */
   --plt-text-primary: #0f172a;
   --plt-text-secondary: #475569;
-  --plt-text-muted: #7c8fac;
+  --plt-text-muted: #94a3b8;
 
-  --plt-success: #059669;
-  --plt-warning: #d97706;
-  --plt-danger: #dc2626;
-
-  --map-bg: #edf0f7;
-
-  --opportunity-green: #059669;
-  --opportunity-yellow: #d97706;
+  /* Opportunity Colors */
+  --opportunity-green: #10b981;
+  --opportunity-yellow: #f59e0b;
   --opportunity-red: #f43f5e;
-  --opportunity-gray: #9ca3af;
-}
-
-.dark {
-  /* Dark Mode */
-  --plt-bg: #0d1117;
-  --plt-panel: #161c2e;
-  --plt-surface: #1e2540;
-  --plt-border: #2d3654;
-  --plt-hover: #242d47;
-
-  --plt-accent: #60a5fa;
-  --plt-accent-glow: rgba(96, 165, 250, 0.15);
-
-  --plt-text-primary: #f1f5f9;
-  --plt-text-secondary: #94a3b8;
-  --plt-text-muted: #64748b;
-
-  --plt-success: #34d399;
-  --plt-warning: #fbbf24;
-  --plt-danger: #f87171;
-
-  --map-bg: #0d1117;
-
-  --opportunity-green: #34d399;
-  --opportunity-yellow: #fbbf24;
-  --opportunity-red: #f43f5e;
-  --opportunity-gray: #64748b;
+  --opportunity-gray: #cbd5e1;
 }
 
 /* Base resets */
@@ -76,70 +54,45 @@ body {
   color: var(--plt-text-primary);
   font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
-  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
-/* Scrollbar styling - Industrial */
-::-webkit-scrollbar { width: 4px; height: 4px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--plt-border); border-radius: 10px; }
-::-webkit-scrollbar-thumb:hover { background: var(--plt-text-muted); }
+/* Custom Scrollbar - Minimalist */
+.custom-scrollbar::-webkit-scrollbar { width: 5px; height: 5px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+.custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 
-/* Tactical Input Fields */
+/* Assertive Tactical Inputs */
 input[type="number"], 
 input[type="month"],
+input[type="text"],
+textarea,
 select {
-  background-color: var(--plt-surface) !important;
+  background-color: #ffffff !important;
   border: 1px solid var(--plt-border) !important;
   color: var(--plt-text-primary) !important;
-  transition: all 0.2s ease;
+  border-radius: 4px;
+  font-size: 12px;
+  transition: all 0.15s ease;
 }
 
-input:focus, select:focus {
+input:focus, select:focus, textarea:focus {
   outline: none !important;
   border-color: var(--plt-accent) !important;
-  box-shadow: 0 0 0 2px var(--plt-accent-glow) !important;
+  ring: 2px solid rgba(37, 99, 235, 0.1);
 }
 
-/* Leaflet Overrides */
+/* Standardized Leaflet Styling */
 .leaflet-container {
-  background: var(--map-bg) !important;
-  transition: none !important;
+  background: #f1f5f9 !important;
   cursor: crosshair;
 }
 
-.leaflet-grab { cursor: grab; }
-.leaflet-dragging .leaflet-grab { cursor: grabbing !important; }
-.leaflet-interactive { cursor: pointer; }
-
 .leaflet-tile-container img {
-  filter: grayscale(0.2) contrast(1.1);
+  filter: saturate(1.1) contrast(1.05);
 }
 
-.dark .leaflet-tile-container img {
-  filter: invert(100%) hue-rotate(180deg) brightness(0.8) contrast(1.2) grayscale(0.1);
-}
-
-/* Global Tactical Utilities */
-.tactical-panel {
-  background: var(--plt-panel);
-  border: 1px solid var(--plt-border);
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-}
-
-.mono-tag {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 10px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-@keyframes pulse-accent {
-  0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4); }
-  70% { box-shadow: 0 0 0 6px rgba(59, 130, 246, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
-}
-
-.status-active {
-  animation: pulse-accent 2s infinite;
+/* Helper Classes */
+.tactical-shadow {
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
 }

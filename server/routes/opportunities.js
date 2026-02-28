@@ -38,30 +38,55 @@ router.get("/:id/comparables", async (req, res) => {
 
   try {
     // 1. Get the target property's details
-    const targetRes = await db.query("SELECT zip, sqft FROM properties WHERE id = $1", [id]);
+    const targetRes = await db.query(
+      "SELECT lat, lng, sqft, year_built FROM properties WHERE id = $1", 
+      [id]
+    );
     if (targetRes.rows.length === 0) return res.status(404).json({ error: "Property not found" });
     
-    const { zip, sqft } = targetRes.rows[0];
-    const minSqft = Math.round(sqft * 0.75);
-    const maxSqft = Math.round(sqft * 1.25);
+    const { lat, lng, sqft, year_built } = targetRes.rows[0];
+    
+    // Fallback if coordinates are missing: use original zip-based logic
+    if (!lat || !lng) {
+      const zipRes = await db.query("SELECT zip FROM properties WHERE id = $1", [id]);
+      const zip = zipRes.rows[0]?.zip;
+      const compsRes = await db.query(`
+        SELECT id, address, city, zip, year_built, sqft, sold_price, sold_date, lat, lng
+        FROM properties
+        WHERE zip = $1 AND listing_type = 'sold' AND sqft BETWEEN $2 AND $3 AND id != $4
+        ORDER BY sold_date DESC LIMIT 10
+      `, [zip, Math.round(sqft * 0.75), Math.round(sqft * 1.25), id]);
+      return res.json(compsRes.rows);
+    }
 
-    // 2. Find sold comps in same zip with similar sqft
+    // 2. Proximity and Similarity Ranking
+    // - Focused on newly built houses (>= 2015) to match rebuild strategy
+    // - Radius reduced to 0.5 miles (roughly 0.0075 degrees)
     const compsQuery = `
       SELECT
         id, address, city, zip, year_built, sqft,
-        list_price, sold_price, sold_date,
+        sold_price, sold_date,
         lat, lng,
-        opportunity_result, predicted_rebuild_value
+        -- Haversine distance
+        (3959 * acos(LEAST(1.0, cos(radians($1)) * cos(radians(lat)) * cos(radians(lng) - radians($2)) + sin(radians($1)) * sin(radians(lat))))) AS distance_mi
       FROM properties
-      WHERE zip = $1 
-        AND listing_type = 'sold'
-        AND sqft BETWEEN $2 AND $3
+      WHERE 
+        listing_type = 'sold'
         AND id != $4
-      ORDER BY sold_date DESC NULLS LAST
+        AND lat IS NOT NULL 
+        AND lng IS NOT NULL
+        AND year_built >= 2015
+        -- Geographic bounding box (roughly 0.5 miles)
+        AND lat BETWEEN $1 - 0.0075 AND $1 + 0.0075
+        AND lng BETWEEN $2 - 0.0075 AND $2 + 0.0075
+      ORDER BY 
+        -- Rank primarily by distance, then by size similarity
+        (3959 * acos(LEAST(1.0, cos(radians($1)) * cos(radians(lat)) * cos(radians(lng) - radians($2)) + sin(radians($1)) * sin(radians(lat))))) ASC,
+        ABS(sqft - $3) ASC
       LIMIT 10
     `;
     
-    const compsRes = await db.query(compsQuery, [zip, minSqft, maxSqft, id]);
+    const compsRes = await db.query(compsQuery, [lat, lng, sqft, id]);
     res.json(compsRes.rows);
   } catch (err) {
     console.error("[comparables] Error:", err.message);
@@ -78,14 +103,23 @@ router.get("/", async (req, res) => {
 
   const zip = req.query.zip || null;
   const city = req.query.city || null;
-  const minRoi = req.query.min_roi !== undefined ? parseInt(req.query.min_roi, 10) : null;
-  const maxYearBuilt = req.query.max_year_built !== undefined ? parseInt(req.query.max_year_built, 10) : null;
-
-  if (minRoi !== null && isNaN(minRoi)) {
-    return res.status(400).json({ error: "min_roi must be a number" });
+  
+  let minRoi = null;
+  if (req.query.min_roi && req.query.min_roi.trim() !== "") {
+    minRoi = parseInt(req.query.min_roi, 10);
+    if (isNaN(minRoi)) return res.status(400).json({ error: "min_roi must be a number" });
   }
-  if (maxYearBuilt !== null && isNaN(maxYearBuilt)) {
-    return res.status(400).json({ error: "max_year_built must be a number" });
+
+  let maxYearBuilt = null;
+  if (req.query.max_year_built && req.query.max_year_built.trim() !== "") {
+    maxYearBuilt = parseInt(req.query.max_year_built, 10);
+    if (isNaN(maxYearBuilt)) return res.status(400).json({ error: "max_year_built must be a number" });
+  }
+
+  let minYearBuilt = null;
+  if (req.query.min_year_built && req.query.min_year_built.trim() !== "") {
+    minYearBuilt = parseInt(req.query.min_year_built, 10);
+    if (isNaN(minYearBuilt)) return res.status(400).json({ error: "min_year_built must be a number" });
   }
   const listingType = req.query.listing_type || "for_sale";
   const limit = Math.min(parseInt(req.query.limit) || 1000, 5000);
@@ -119,29 +153,38 @@ router.get("/", async (req, res) => {
     conditions.push(`year_built <= $${params.length}`);
   }
 
+  if (minYearBuilt !== null) {
+    params.push(minYearBuilt);
+    conditions.push(`year_built >= $${params.length}`);
+  }
+
   const whereClause = "WHERE " + conditions.join(" AND ");
 
-  params.push(limit);
-  const limitClause = `LIMIT $${params.length}`;
-
-  const query = `
-    SELECT
-      id, mls_id, address, city, zip,
-      lat, lng,
-      year_built, sqft, lot_sqft,
-      list_price, sold_price, sold_date,
-      listing_type,
-      predicted_rebuild_value,
-      opportunity_result,
-      construction_cost_per_sqft
-    FROM properties
-    ${whereClause}
-    ORDER BY opportunity_result DESC NULLS LAST
-    ${limitClause}
-  `;
-
   try {
-    const { rows } = await db.query(query, params);
+    // 1. Get true total count matching these filters
+    const countQuery = `SELECT COUNT(*) as count FROM properties ${whereClause}`;
+    const { rows: countRows } = await db.query(countQuery, params);
+    const totalMatch = parseInt(countRows[0].count);
+
+    // 2. Get the limited records for display
+    const limitParams = [...params, limit];
+    const query = `
+      SELECT
+        id, mls_id, address, city, zip,
+        lat, lng,
+        year_built, sqft, lot_sqft,
+        list_price, sold_price, sold_date,
+        listing_type,
+        predicted_rebuild_value,
+        opportunity_result,
+        construction_cost_per_sqft
+      FROM properties
+      ${whereClause}
+      ORDER BY opportunity_result DESC NULLS LAST
+      LIMIT $${limitParams.length}
+    `;
+
+    const { rows } = await db.query(query, limitParams);
 
     const features = rows.map((row) => ({
       type: "Feature",
@@ -172,7 +215,12 @@ router.get("/", async (req, res) => {
     res.json({
       type: "FeatureCollection",
       features,
-      meta: { total: features.length, limit, listing_type: listingType },
+      meta: { 
+        total: totalMatch, 
+        showing: features.length,
+        limit, 
+        listing_type: listingType 
+      },
     });
   } catch (err) {
     console.error("[opportunities] Query error:", err.message);
