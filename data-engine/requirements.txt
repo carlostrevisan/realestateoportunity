@@ -1,0 +1,12 @@
+homeharvest==0.8.18
+pandas==2.3.1
+psycopg2-binary==2.9.9
+sqlalchemy==2.0.25
+python-dateutil==2.8.2
+python-dotenv==1.0.0
+requests==2.32.5
+xgboost==2.0.3
+scikit-learn==1.4.0
+numpy==1.26.3
+flask==3.0.0
+tenacity==9.1.4

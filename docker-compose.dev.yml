@@ -1,0 +1,40 @@
+# Development overrides — adds bind mounts for hot reload
+# Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+services:
+  backend:
+    build:
+      context: ./server
+      target: development
+    environment:
+      NODE_ENV: development
+    volumes:
+      # Bind mount source for nodemon hot reload
+      - ./server:/app
+      # Prevent overwriting container's node_modules with host's
+      - /app/node_modules
+    command: npm run dev
+
+  frontend:
+    build:
+      context: ./client
+      target: development
+    environment:
+      NODE_ENV: development
+      VITE_API_URL: http://backend:4000
+    volumes:
+      # Bind mount source for Vite HMR
+      - ./client:/app
+      - /app/node_modules
+    command: npm run dev -- --host 0.0.0.0
+
+  data-worker:
+    build:
+      context: ./data-engine
+      target: development
+    volumes:
+      # Bind mount source for live Python editing
+      - ./data-engine:/app
+    environment:
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTHONUNBUFFERED: "1"

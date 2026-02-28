@@ -1,0 +1,136 @@
+@import "leaflet/dist/leaflet.css";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Theme Variables */
+:root {
+  --plt-bg: #ffffff;
+  --plt-panel: #f4f4f5;
+  --plt-surface: #ffffff;
+  --plt-border: #e4e4e7;
+  --plt-hover: #f1f5f9;
+  --plt-accent: #3b82f6;
+  --plt-accent-dim: #2563eb;
+  --plt-green: #10b981; /* Standard green in light mode */
+  --plt-text-primary: #09090b;
+  --plt-text-secondary: #52525b;
+  --plt-text-muted: #a1a1aa;
+  --map-bg: #f4f4f5;
+  
+  --opportunity-green: #10b981;
+  --opportunity-yellow: #f59e0b;
+  --opportunity-red: #ef4444;
+  --opportunity-gray: #a1a1aa;
+}
+
+.dark {
+  --plt-bg: #07090f;
+  --plt-panel: #0d1117;
+  --plt-surface: #111827;
+  --plt-border: #1f2937;
+  --plt-hover: #1a2438;
+  --plt-accent: #3b82f6;      /* Blue accent */
+  --plt-accent-dim: #2563eb;  /* Dimmer blue */
+  --plt-green: #3b82f6;       /* Map "green" to blue in dark mode as requested */
+  --plt-text-primary: #e2e8f0;
+  --plt-text-secondary: #94a3b8;
+  --plt-text-muted: #4b5563;
+  --map-bg: #07090f;
+
+  --opportunity-green: #10b981;
+  --opportunity-yellow: #f59e0b;
+  --opportunity-red: #ef4444;
+  --opportunity-gray: #a1a1aa;
+}
+
+/* Base */
+html, body, #root {
+  height: 100vh;
+  width: 100vw;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+body {
+  background-color: var(--plt-bg);
+  color: var(--plt-text-primary);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  transition: background-color 0.2s, color 0.2s;
+}
+
+/* LEAFLET RENDERING FIXES */
+.leaflet-container {
+  width: 100% !important;
+  height: 100% !important;
+  background: var(--map-bg) !important;
+  outline: none;
+  z-index: 1;
+  /* Disable transitions which break tile calculations */
+  transition: none !important;
+}
+
+/* CRITICAL: Fix for Checkerboard/Broken Puzzle */
+.leaflet-tile-container img {
+  width: 256.5px !important; /* Tiny overlap to prevent gaps */
+  height: 256.5px !important;
+  max-width: none !important;
+  max-height: none !important;
+}
+
+/* Ensure tiles are correctly positioned */
+.leaflet-tile {
+  visibility: inherit !important;
+}
+
+.leaflet-grab {
+  cursor: grab !important;
+}
+
+/* Scrollbar — Themed */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--plt-panel); }
+::-webkit-scrollbar-thumb { background: var(--plt-border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--plt-text-muted); }
+
+/* Range input Palantir accent */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--plt-border);
+  outline: none;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--plt-accent);
+  cursor: pointer;
+  border: 2px solid var(--plt-bg);
+  box-shadow: 0 0 4px rgba(59, 130, 246, 0.3);
+}
+input[type="range"]::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--plt-accent);
+  cursor: pointer;
+  border: 2px solid var(--plt-bg);
+}
+
+/* Terminal / console log styling */
+.console-log {
+  font-family: 'Cascadia Code', Consolas, 'Courier New', monospace;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+/* Subtle glow on active status indicators */
+.status-dot-active {
+  box-shadow: 0 0 6px var(--plt-accent);
+}
