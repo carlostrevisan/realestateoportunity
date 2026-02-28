@@ -8,7 +8,12 @@
       "Bash(sudo docker:*)",
       "Bash(sudo:*)",
       "Bash(dpkg -l)",
-      "Bash(sg docker:*)"
+      "Bash(sg docker:*)",
+      "Bash(docker:*)",
+      "Bash(curl:*)",
+      "Bash(ss:*)",
+      "Bash(xargs ls:*)",
+      "Bash(grep:*)"
     ]
   }
 }

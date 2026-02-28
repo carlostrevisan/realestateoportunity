@@ -14,16 +14,13 @@ export default {
           surface:  'var(--plt-surface)',
           border:   'var(--plt-border)',
           hover:    'var(--plt-hover)',
-          green:    'var(--plt-green)',
           accent:   'var(--plt-accent)',
-          "accent-dim": 'var(--plt-accent-dim)',
           primary:  'var(--plt-text-primary)',
           secondary: 'var(--plt-text-secondary)',
           muted:    'var(--plt-text-muted)',
-          success:  '#10b981',
-          warning:  '#f59e0b',
-          danger:   '#ef4444',
-          running:  '#3b82f6',
+          success:  'var(--plt-success)',
+          warning:  'var(--plt-warning)',
+          danger:   'var(--plt-danger)',
         },
         opportunity: {
           green: "var(--opportunity-green)",
@@ -33,7 +30,12 @@ export default {
         },
       },
       fontFamily: {
-        mono: ["'Cascadia Code'", "Consolas", "'Courier New'", "monospace"],
+        sans: ["'Plus Jakarta Sans'", "system-ui", "-apple-system", "sans-serif"],
+        mono: ["'JetBrains Mono'", "monospace"],
+      },
+      boxShadow: {
+        'tactical': '0 4px 20px -2px rgba(0, 0, 0, 0.3)',
+        'accent': '0 0 15px var(--plt-accent-glow)',
       },
       animation: {
         "pulse-slow": "pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite",

@@ -49,7 +49,11 @@ router.get("/status", async (req, res) => {
  */
 router.post("/train", async (req, res) => {
   try {
-    const workerRes = await fetch(`${WORKER_URL}/run/train`, { method: "POST" });
+    const workerRes = await fetch(`${WORKER_URL}/run/train`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(req.body),
+    });
     const data = await workerRes.json();
     res.status(workerRes.status).json(data);
   } catch (err) {
@@ -85,6 +89,76 @@ router.post("/census", async (req, res) => {
   } catch (err) {
     console.error("[ml/census] Worker unreachable:", err.message);
     res.status(503).json({ error: "data-worker unavailable", detail: err.message });
+  }
+});
+
+/**
+ * GET /api/ml/models
+ * Returns all completed training runs with their model metadata, newest first.
+ */
+router.get("/models", async (req, res) => {
+  const db = req.app.locals.db;
+  try {
+    const { rows } = await db.query(`
+      SELECT id, status, started_at, completed_at,
+             properties_trained, r2_score, error_message,
+             model_path, training_context, is_active,
+             name, description
+      FROM model_runs
+      WHERE run_type = 'train' AND status = 'completed'
+      ORDER BY started_at DESC
+    `);
+    res.json(rows);
+  } catch (err) {
+    console.error("[ml/models] Error:", err.message);
+    res.status(500).json({ error: "Failed to fetch models" });
+  }
+});
+
+/**
+ * PATCH /api/ml/models/:id
+ * Updates the name and/or description of a training run.
+ */
+router.patch("/models/:id", async (req, res) => {
+  const db = req.app.locals.db;
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) return res.status(400).json({ error: "Invalid model id" });
+  const { name, description } = req.body;
+  if (name === undefined && description === undefined) {
+    return res.status(400).json({ error: "Provide name or description" });
+  }
+  try {
+    const { rowCount } = await db.query(
+      "UPDATE model_runs SET name=$1, description=$2 WHERE id=$3 AND run_type='train'",
+      [name ?? null, description ?? null, id]
+    );
+    if (rowCount === 0) return res.status(404).json({ error: "Model not found" });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[ml/models/patch] Error:", err.message);
+    res.status(500).json({ error: "Failed to update model" });
+  }
+});
+
+/**
+ * POST /api/ml/models/:id/activate
+ * Sets the specified model as active for scoring (deactivates all others).
+ */
+router.post("/models/:id/activate", async (req, res) => {
+  const db = req.app.locals.db;
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) return res.status(400).json({ error: "Invalid model id" });
+  try {
+    await db.query("UPDATE model_runs SET is_active = FALSE WHERE run_type = 'train'");
+    const { rowCount } = await db.query(
+      "UPDATE model_runs SET is_active = TRUE WHERE id = $1 AND run_type = 'train' AND status = 'completed'",
+      [id]
+    );
+    if (rowCount === 0) return res.status(404).json({ error: "Model not found" });
+    res.json({ ok: true, active_id: id });
+  } catch (err) {
+    console.error("[ml/models/activate] Error:", err.message);
+    res.status(500).json({ error: "Failed to activate model" });
   }
 });
 

@@ -1,245 +1,225 @@
 """
-ml_model.py — XGBoost opportunity predictor.
-
-Data flow:
-  TRAIN  — learns from sold new-build data (year_built > 2015)
-           what a newly-built home sells for in each ZIP
-  SCORE  — applies that model to active for-sale listings
-           to estimate their rebuild value and opportunity profit
-
-Formula:
-    opportunity_result = predicted_rebuild_value - (acquisition_cost + construction_cost)
-    acquisition_cost  = list_price  (for for_sale listings)
-    construction_cost = sqft × construction_cost_per_sqft  ($175 default)
-
-Usage:
-    python ml_model.py --train    # Train on sold data and score all for_sale properties
-    python ml_model.py --score    # Score for_sale properties with existing model
+ml_model.py — XGBoost training and scoring logic.
 """
 
 import argparse
+import json
 import logging
 import os
-import pickle
+from datetime import datetime
 
-import numpy as np
 import pandas as pd
+import xgboost as xgb
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import LabelEncoder
-from xgboost import XGBRegressor
+from sklearn.metrics import r2_score
 
 import db
 
+FEATURE_COLS = ['sqft', 'lot_sqft', 'year_built', 'median_household_income', 'zip']
+
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
+    format="%(asctime)s %(message)s",
+    datefmt="%H:%M:%S",
 )
 logger = logging.getLogger(__name__)
 
-MODEL_DIR = os.path.join(os.path.dirname(__file__), "models")
-MODEL_PATH = os.path.join(MODEL_DIR, "xgb_rebuild_value.pkl")
-ENCODER_PATH = os.path.join(MODEL_DIR, "zip_encoder.pkl")
-
-DEFAULT_CONSTRUCTION_COST_PER_SQFT = 175.0
-NEW_BUILD_YEAR_THRESHOLD = 2015
-
-
-def train():
-    """
-    Train XGBoost on sold new-build data, then score all for_sale properties.
-    Records the run in model_runs table.
-    """
-    os.makedirs(MODEL_DIR, exist_ok=True)
+def train_model(n_estimators=1000, max_depth=6, learning_rate=0.05, min_year_built=2015, test_split=0.2):
     run_id = db.start_model_run("train")
+    logger.info("[EXEC] Starting model training...")
+    logger.info(f"[DATA] Hyperparams: estimators={n_estimators} depth={max_depth} lr={learning_rate} min_year={min_year_built} test_split={test_split}")
 
     try:
-        logger.info("[ml/train] Fetching sold properties for training...")
-        sold_records = db.fetch_sold_for_training()
-
-        if not sold_records:
-            msg = "No sold properties in database. Run: python scraper.py --market tampa --type sold --start 2022-01 --end 2024-12"
-            logger.error(f"[ml/train] {msg}")
+        data = db.fetch_sold_for_training()
+        if not data or len(data) < 10:
+            msg = "Not enough data — minimum 10 records required"
+            logger.warning(f"[SKIP] {msg}")
             db.fail_model_run(run_id, msg)
             return
 
-        df = pd.DataFrame(sold_records)
-        logger.info(f"[ml/train] Loaded {len(df)} sold properties")
+        df = pd.DataFrame(data)
+        # Training on new builds to predict rebuild value
+        train_df = df[df['year_built'] >= min_year_built].copy()
 
-        # Training set: new builds where we know the sold price
-        # These proxy for "what a new build on this lot would sell for"
-        train_df = df[
-            df["year_built"].notna() &
-            (df["year_built"] > NEW_BUILD_YEAR_THRESHOLD)
-        ].copy()
-
-        if len(train_df) < 10:
-            msg = f"Not enough new-build training data ({len(train_df)} records, need ≥10 with year_built > {NEW_BUILD_YEAR_THRESHOLD})"
-            logger.error(f"[ml/train] {msg}")
+        if train_df.empty:
+            msg = f"No new builds (post-{min_year_built}) found in dataset"
+            logger.warning(f"[SKIP] {msg}")
             db.fail_model_run(run_id, msg)
             return
 
-        logger.info(f"[ml/train] Training on {len(train_df)} new-build records (year_built > {NEW_BUILD_YEAR_THRESHOLD})")
+        # Rough ETA: XGBoost with 1000 estimators scales ~linearly; ~0.02s per row
+        est_seconds = max(10, len(train_df) * 0.02)
+        if est_seconds < 60:
+            eta_str = f"~{int(est_seconds)}s"
+        else:
+            eta_str = f"~{int(est_seconds / 60)} min"
+        logger.info(f"[DATA] Training on {len(train_df)} properties — est. {eta_str}")
 
-        # Encode ZIPs
-        le = LabelEncoder()
-        all_zips = df["zip"].fillna("00000").astype(str)
-        le.fit(all_zips)
-        train_df["zip_encoded"] = le.transform(train_df["zip"].fillna("00000").astype(str))
+        # Label encode ZIP codes
+        unique_zips = sorted(train_df['zip'].dropna().unique().tolist())
+        zip_map = {z: i for i, z in enumerate(unique_zips)}
 
-        features = ["sqft", "lot_sqft", "year_built", "median_household_income", "zip_encoded"]
-        target = "sold_price"
+        # Features: SQFT, Lot SQFT, Year Built, Median Income, ZIP
+        X = train_df[FEATURE_COLS].copy()
+        for col in ['sqft', 'lot_sqft', 'year_built', 'median_household_income']:
+            X[col] = X[col].fillna(0)
+        X['zip'] = X['zip'].map(zip_map).fillna(-1)
 
-        for col in features:
-            if col in train_df.columns:
-                train_df[col] = pd.to_numeric(train_df[col], errors="coerce")
-                train_df[col] = train_df[col].fillna(train_df[col].median())
-            else:
-                train_df[col] = 0
+        y = train_df['sold_price']
 
-        X = train_df[features].values
-        y = train_df[target].values
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_split, random_state=42)
 
-        X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)
-
-        model = XGBRegressor(
-            n_estimators=200,
-            max_depth=5,
-            learning_rate=0.05,
-            subsample=0.8,
-            colsample_bytree=0.8,
-            random_state=42,
-            verbosity=0,
+        model = xgb.XGBRegressor(
+            objective='reg:squarederror',
+            n_estimators=n_estimators,
+            learning_rate=learning_rate,
+            max_depth=max_depth,
+            random_state=42
         )
+
         model.fit(X_train, y_train)
 
-        val_r2 = model.score(X_val, y_val)
-        logger.info(f"[ml/train] Validation R² = {val_r2:.4f}")
+        raw_imp = model.feature_importances_
+        feature_importances = {feat: round(float(imp), 4) for feat, imp in zip(FEATURE_COLS, raw_imp)}
 
-        with open(MODEL_PATH, "wb") as f:
-            pickle.dump(model, f)
-        with open(ENCODER_PATH, "wb") as f:
-            pickle.dump(le, f)
-        logger.info(f"[ml/train] Model saved to {MODEL_PATH}")
+        preds = model.predict(X_test)
+        r2 = r2_score(y_test, preds)
 
-        # Now score all for_sale properties
-        scored = _score_for_sale(model, le)
+        # Save to a unique versioned path — never overwrites a previous model
+        if not os.path.exists("models"): os.makedirs("models")
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        model_path = f"models/rebuild_{run_id}_{timestamp}.json"
+        model.save_model(model_path)
+
+        # Extract training context from the full dataset for the model card
+        zip_codes = sorted(df['zip'].dropna().unique().tolist()) if 'zip' in df.columns else []
+        cities = sorted(df['city'].dropna().unique().tolist()) if 'city' in df.columns else []
+        sold_date_from = str(df['sold_date'].min())[:7] if 'sold_date' in df.columns and df['sold_date'].notna().any() else None
+        sold_date_to   = str(df['sold_date'].max())[:7] if 'sold_date' in df.columns and df['sold_date'].notna().any() else None
+        context = {
+            "zip_codes": zip_codes,
+            "cities": cities,
+            "sold_date_from": sold_date_from,
+            "sold_date_to": sold_date_to,
+            "year_built_min": min_year_built,
+            "features": FEATURE_COLS,
+            "n_estimators": n_estimators,
+            "learning_rate": learning_rate,
+            "max_depth": max_depth,
+            "test_split": test_split,
+            "train_rows": len(X_train),
+            "test_rows": len(X_test),
+            "feature_importances": feature_importances,
+            "zip_map": zip_map,
+        }
 
         db.complete_model_run(
             run_id,
             properties_trained=len(train_df),
-            properties_scored=scored,
-            r2_score=round(val_r2, 4),
+            r2_score=r2,
+            model_path=model_path,
+            training_context=json.dumps(context),
         )
+        db.set_active_model(run_id)
+        logger.info(f"[LOAD] Model saved → {model_path} — R² = {r2:.4f}")
+        logger.info(f"[DATA] Context: {len(zip_codes)} ZIP(s), {sold_date_from} – {sold_date_to}")
+        logger.info("[EXEC] Training complete")
 
     except Exception as e:
-        logger.exception("[ml/train] Unexpected error")
+        logger.error(f"[FAIL] Training failed: {str(e)}")
         db.fail_model_run(run_id, str(e))
-        raise
 
-
-def score():
-    """Load existing model and score all for_sale properties."""
-    if not os.path.exists(MODEL_PATH):
-        logger.error(f"[ml/score] No trained model at {MODEL_PATH}. Run with --train first.")
-        return
-
+def score_properties():
     run_id = db.start_model_run("score")
-    try:
-        with open(MODEL_PATH, "rb") as f:
-            model = pickle.load(f)
-        with open(ENCODER_PATH, "rb") as f:
-            le = pickle.load(f)
+    logger.info("[EXEC] Starting opportunity scoring...")
 
-        scored = _score_for_sale(model, le)
-        db.complete_model_run(run_id, properties_scored=scored)
+    try:
+        active = db.get_active_model()
+        if not active or not active.get("model_path"):
+            msg = "No active model — train a model first"
+            logger.error(f"[FAIL] {msg}")
+            db.fail_model_run(run_id, msg)
+            return
+
+        model_path = active["model_path"]
+        if not os.path.exists(model_path):
+            msg = f"Model file missing ({model_path}) — retrain to restore"
+            logger.error(f"[FAIL] {msg}")
+            db.fail_model_run(run_id, msg)
+            return
+
+        context_raw = active.get("training_context")
+        if isinstance(context_raw, str):
+            context = json.loads(context_raw)
+        else:
+            context = context_raw or {}
+        zip_map = context.get("zip_map", {})
+
+        logger.info(f"[DATA] Loading model: {model_path} (R²={active.get('r2_score', 'n/a')})")
+        model = xgb.XGBRegressor()
+        model.load_model(model_path)
+
+        candidates = db.fetch_for_sale_for_scoring()
+        if not candidates:
+            logger.info("[SKIP] No unscored properties found")
+            db.complete_model_run(run_id, properties_scored=0)
+            return
+
+        # Scoring is batch inference — fast, ~0.001s per row
+        est_seconds = max(2, int(len(candidates) * 0.001))
+        logger.info(f"[DATA] Found {len(candidates)} properties to score — est. ~{est_seconds}s")
+        
+        df = pd.DataFrame(candidates)
+        X = df[FEATURE_COLS].copy()
+        for col in ['sqft', 'lot_sqft', 'year_built', 'median_household_income']:
+            X[col] = X[col].fillna(0)
+        X['zip'] = X['zip'].map(zip_map).fillna(-1)
+        
+        # Predict rebuild value
+        df['predicted_rebuild_value'] = model.predict(X).astype(int)
+        
+        # Calculate Opportunity: Predicted Value - (Acquisition + Construction)
+        # Assuming construction cost is stored or defaulted in DB
+        results = []
+        for _, row in df.iterrows():
+            # Opportunity = Vpre - (Acq + (sqft * cost_per_sqft))
+            cost_per_sqft = float(row['construction_cost_per_sqft'] or 175.0)
+            total_build_cost = row['sqft'] * cost_per_sqft
+            opp = row['predicted_rebuild_value'] - (row['list_price'] + total_build_cost)
+            
+            results.append({
+                "id": int(row['id']),
+                "predicted_rebuild_value": int(row['predicted_rebuild_value']),
+                "opportunity_result": int(opp)
+            })
+
+        db.write_opportunity_scores(results)
+        db.complete_model_run(run_id, properties_scored=len(results))
+        logger.info(f"[LOAD] Scored {len(results)} properties")
+        logger.info("[EXEC] Scoring complete")
 
     except Exception as e:
-        logger.exception("[ml/score] Unexpected error")
+        logger.error(f"[FAIL] Scoring failed: {str(e)}")
         db.fail_model_run(run_id, str(e))
-        raise
 
-
-def _score_for_sale(model: XGBRegressor, le: LabelEncoder) -> int:
-    """
-    Predict rebuild value and compute opportunity_result for all for_sale properties.
-    Uses list_price as acquisition cost (no sold_price for active listings).
-
-    Returns: number of properties scored
-    """
-    logger.info("[ml/score] Fetching for_sale properties...")
-    records = db.fetch_for_sale_for_scoring()
-
-    if not records:
-        logger.warning("[ml/score] No for_sale properties to score. Run the for_sale scraper first.")
-        return 0
-
-    df = pd.DataFrame(records)
-    logger.info(f"[ml/score] Scoring {len(df)} for_sale properties")
-
-    # Encode ZIPs
-    known_classes = set(le.classes_)
-    df["zip_encoded"] = df["zip"].fillna("00000").astype(str).apply(
-        lambda z: le.transform([z])[0] if z in known_classes else -1
-    )
-
-    features = ["sqft", "lot_sqft", "year_built", "median_household_income", "zip_encoded"]
-    for col in features:
-        if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
-        else:
-            df[col] = 0
-
-    X = df[features].values
-    predicted_rebuild_values = model.predict(X)
-
-    scores = []
-    for i, row in df.iterrows():
-        # For active listings: acquisition cost = list_price (what you'd pay to buy it)
-        acquisition_cost = float(row.get("list_price") or 0)
-        cost_per_sqft = float(row.get("construction_cost_per_sqft") or DEFAULT_CONSTRUCTION_COST_PER_SQFT)
-        sqft = float(row.get("sqft") or 0)
-        construction_cost = sqft * cost_per_sqft
-
-        predicted_value = int(predicted_rebuild_values[i])
-        opportunity = int(predicted_value - acquisition_cost - construction_cost)
-
-        scores.append({
-            "id": row["id"],
-            "predicted_rebuild_value": predicted_value,
-            "opportunity_result": opportunity,
-        })
-
-    db.write_opportunity_scores(scores)
-
-    profitable = sum(1 for s in scores if s["opportunity_result"] > 0)
-    logger.info(f"[ml/score] Done — {len(scores)} scored, {profitable} profitable opportunities")
-    return len(scores)
-
-
-def main():
-    parser = argparse.ArgumentParser(
-        description="Train XGBoost on sold data, score for_sale listings"
-    )
-    group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument(
-        "--train",
-        action="store_true",
-        help="Train model on sold new-build data, then score all for_sale listings",
-    )
-    group.add_argument(
-        "--score",
-        action="store_true",
-        help="Score all for_sale listings using existing trained model",
-    )
-
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--train", action="store_true")
+    parser.add_argument("--score", action="store_true")
+    parser.add_argument("--n-estimators", type=int, default=1000)
+    parser.add_argument("--max-depth", type=int, default=6)
+    parser.add_argument("--lr", type=float, default=0.05)
+    parser.add_argument("--min-year-built", type=int, default=2015)
+    parser.add_argument("--test-split", type=float, default=0.2)
     args = parser.parse_args()
 
     if args.train:
-        train()
-    elif args.score:
-        score()
-
-
-if __name__ == "__main__":
-    main()
+        train_model(
+            n_estimators=args.n_estimators,
+            max_depth=args.max_depth,
+            learning_rate=args.lr,
+            min_year_built=args.min_year_built,
+            test_split=args.test_split,
+        )
+    if args.score:
+        score_properties()

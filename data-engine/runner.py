@@ -174,6 +174,7 @@ def run_scrape():
     zip_code = data.get("zip")
     start = data.get("start")
     end = data.get("end")
+    throttle = data.get("throttle")
     force_renew = data.get("force_renew", False)
     all_zips = data.get("all_zips", False)
 
@@ -191,12 +192,14 @@ def run_scrape():
     cmd = [sys.executable, "scraper.py", *target.split(), "--type", scrape_type]
     if scrape_type == "sold":
         cmd += ["--start", start, "--end", end]
+    if throttle:
+        cmd += ["--throttle", str(throttle)]
     if force_renew:
         cmd += ["--force-renew"]
     if all_zips:
         cmd += ["--all-zips"]
 
-    job_id = _make_job("scrape", {"scrape_type": scrape_type, "market": market, "zip": zip_code, "start": start, "end": end, "force_renew": force_renew, "all_zips": all_zips})
+    job_id = _make_job("scrape", {"scrape_type": scrape_type, "market": market, "zip": zip_code, "start": start, "end": end, "throttle": throttle, "force_renew": force_renew, "all_zips": all_zips})
     _spawn(job_id, cmd)
 
     return jsonify({"job_id": job_id, "status": "started", "cmd": " ".join(cmd)})
@@ -204,8 +207,15 @@ def run_scrape():
 
 @app.post("/run/train")
 def run_train():
+    body = request.get_json(silent=True) or {}
+    cmd = [sys.executable, "ml_model.py", "--train"]
+    if "n_estimators" in body:   cmd += ["--n-estimators",   str(body["n_estimators"])]
+    if "max_depth" in body:      cmd += ["--max-depth",      str(body["max_depth"])]
+    if "lr" in body:             cmd += ["--lr",             str(body["lr"])]
+    if "min_year_built" in body: cmd += ["--min-year-built", str(body["min_year_built"])]
+    if "test_split" in body:     cmd += ["--test-split",     str(body["test_split"])]
     job_id = _make_job("train")
-    _spawn(job_id, [sys.executable, "ml_model.py", "--train"])
+    _spawn(job_id, cmd)
     return jsonify({"job_id": job_id, "status": "started"})
 
 
@@ -221,6 +231,19 @@ def run_census():
     job_id = _make_job("census")
     _spawn(job_id, [sys.executable, "census_fetcher.py", "--all"])
     return jsonify({"job_id": job_id, "status": "started"})
+
+
+@app.post("/reset")
+def reset_data():
+    """Deletes the persistent CSV file."""
+    csv_path = "data/scraped_listings.csv"
+    try:
+        if os.path.exists(csv_path):
+            os.remove(csv_path)
+            return jsonify({"status": "ok", "message": "CSV deleted"})
+        return jsonify({"status": "ok", "message": "No CSV found to delete"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 if __name__ == "__main__":

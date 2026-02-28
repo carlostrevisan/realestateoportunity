@@ -2,11 +2,11 @@ import React from "react";
 
 export default function Help() {
   return (
-    <div className="flex-1 overflow-y-auto bg-plt-bg p-6 md:p-10 font-sans max-w-4xl mx-auto">
-      <header className="mb-10 border-b border-plt-border pb-6">
-        <h1 className="text-3xl font-bold text-plt-primary mb-2 tracking-tight">System Documentation</h1>
+    <div className="flex-1 overflow-y-auto bg-plt-bg p-4 sm:p-6 md:p-10 font-sans max-w-4xl mx-auto">
+      <header className="mb-8 sm:mb-10 border-b border-plt-border pb-5 sm:pb-6">
+        <h1 className="text-2xl sm:text-3xl font-bold text-plt-primary mb-2 tracking-tight">System Documentation</h1>
         <p className="text-plt-secondary font-mono text-xs uppercase tracking-widest">
-          Florida Real Estate Opportunity Engine — Technical Overview
+          RE Opportunity — Technical Overview
         </p>
       </header>
 
@@ -17,7 +17,7 @@ export default function Help() {
         </h2>
         <div className="space-y-4 text-plt-secondary leading-relaxed">
           <p>
-            The <span className="text-plt-primary font-medium">FL·OPP·ENGINE</span> is an automated investment analysis platform designed to identify "Buy, Demolish, Rebuild" candidates across Florida's high-growth markets.
+            The <span className="text-plt-primary font-medium">RE·OPP·ENGINE</span> is an automated investment analysis platform designed to identify "Buy, Demolish, Rebuild" candidates across Florida's high-growth markets.
           </p>
           <p>
             By combining real-time MLS data with U.S. Census socio-economic markers, the system calculates the potential profit of acquiring an older property, replacing it with a modern build, and selling it at the current market premium for new construction.
@@ -30,7 +30,7 @@ export default function Help() {
           <span className="w-1.5 h-6 bg-plt-accent inline-block rounded-full" />
           How it Works
         </h2>
-        <div className="grid md:grid-cols-3 gap-6">
+        <div className="grid md:grid-cols-3 gap-3 md:gap-6">
           <div className="bg-plt-panel p-5 border border-plt-border rounded-lg">
             <div className="text-plt-accent font-mono text-xs mb-3 font-bold uppercase tracking-tighter">Phase 01 — Ingestion</div>
             <p className="text-xs leading-relaxed">
@@ -65,7 +65,7 @@ export default function Help() {
             </p>
           </div>
 
-          <div className="p-5 border-b border-plt-border grid md:grid-cols-2 gap-8">
+          <div className="p-4 sm:p-5 border-b border-plt-border grid md:grid-cols-2 gap-4 md:gap-8">
             <div>
               <h4 className="text-[10px] font-bold text-plt-accent uppercase mb-3 font-mono">Model Performance (Backtested)</h4>
               <div className="space-y-3">
@@ -159,7 +159,7 @@ export default function Help() {
         </div>
       </section>
 
-      <footer className="mt-20 pt-10 border-t border-plt-border text-center">
+      <footer className="mt-10 sm:mt-20 pt-6 sm:pt-10 border-t border-plt-border text-center">
         <p className="text-plt-muted text-[10px] font-mono uppercase tracking-[0.2em]">
           Internal Use Only — Confidential Analysis
         </p>

@@ -1,21 +1,14 @@
 const express = require("express");
-const router = express.Router();
+const router = require("express").Router();
 
 const WORKER_URL = process.env.WORKER_URL || "http://data-worker:5000";
 const VALID_MARKETS = ["tampa", "orlando", "winter_garden", "winter_park", "all"];
 
 /**
  * POST /api/scrape/trigger
- * Validates input then proxies to data-worker Flask runner.
- *
- * Body for for_sale (active listings):
- *   { type: "for_sale", market: "tampa" }
- *
- * Body for sold (historical training data):
- *   { type: "sold", market: "tampa", start: "2022-01", end: "2024-12" }
  */
 router.post("/trigger", async (req, res) => {
-  const { type = "for_sale", zip, market, start, end, force_renew, all_zips } = req.body;
+  const { type = "for_sale", zip, market, start, end, throttle, force_renew, all_zips } = req.body;
 
   if (!["sold", "for_sale"].includes(type)) {
     return res.status(400).json({ error: 'type must be "sold" or "for_sale"' });
@@ -37,7 +30,7 @@ router.post("/trigger", async (req, res) => {
     const workerRes = await fetch(`${WORKER_URL}/run/scrape`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type, zip, market, start, end, force_renew, all_zips }),
+      body: JSON.stringify({ type, zip, market, start, end, throttle, force_renew, all_zips }),
     });
     const data = await workerRes.json();
     res.status(workerRes.status).json(data);
@@ -49,7 +42,6 @@ router.post("/trigger", async (req, res) => {
 
 /**
  * GET /api/scrape/status
- * Returns data freshness per ZIP and listing_type from the DB.
  */
 router.get("/status", async (req, res) => {
   const db = req.app.locals.db;
@@ -70,6 +62,25 @@ router.get("/status", async (req, res) => {
   } catch (err) {
     console.error("[scrape/status] Error:", err.message);
     res.status(500).json({ error: "Failed to fetch scrape status" });
+  }
+});
+
+/**
+ * POST /api/scrape/reset
+ */
+router.post("/reset", async (req, res) => {
+  const db = req.app.locals.db;
+  try {
+    // 1. Clear Database
+    await db.query("TRUNCATE properties, model_runs, scrape_log, zip_income RESTART IDENTITY");
+
+    // 2. Tell worker to delete local assets if any (internal call)
+    await fetch(`${WORKER_URL}/reset`, { method: "POST" });
+
+    res.json({ status: "ok", message: "Kernel purged and logs cleared" });
+  } catch (err) {
+    console.error("[reset] Error:", err.message);
+    res.status(500).json({ error: "Reset failed" });
   }
 });
 

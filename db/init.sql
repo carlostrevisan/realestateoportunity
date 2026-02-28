@@ -30,6 +30,17 @@ CREATE TABLE IF NOT EXISTS zip_income (
     fetched_at              TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Tracks successfully completed scrape chunks to avoid re-fetching
+CREATE TABLE IF NOT EXISTS scrape_log (
+    id          SERIAL PRIMARY KEY,
+    market      VARCHAR(100),  -- e.g. 'tampa' or '33629'
+    month       INTEGER,
+    year        INTEGER,
+    scrape_type VARCHAR(20),   -- 'sold' or 'for_sale'
+    created_at  TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(market, month, year, scrape_type)
+);
+
 -- Tracks each ML training and scoring run
 CREATE TABLE IF NOT EXISTS model_runs (
     id                  SERIAL PRIMARY KEY,
@@ -40,7 +51,10 @@ CREATE TABLE IF NOT EXISTS model_runs (
     properties_trained  INTEGER,            -- rows used to train (train runs only)
     properties_scored   INTEGER,            -- rows scored (score runs)
     r2_score            DECIMAL(5,4),       -- validation R² (train runs only)
-    error_message       TEXT                -- populated on failure
+    error_message       TEXT,               -- populated on failure
+    model_path          VARCHAR(255),       -- path to saved model file (train runs only)
+    training_context    JSONB,              -- metadata: markets, date range, features, hyperparams
+    is_active           BOOLEAN DEFAULT FALSE  -- which model is currently used for scoring
 );
 
 CREATE INDEX IF NOT EXISTS idx_properties_zip
@@ -54,3 +68,9 @@ CREATE INDEX IF NOT EXISTS idx_properties_year_built
 
 CREATE INDEX IF NOT EXISTS idx_properties_listing_type
     ON properties(listing_type);
+
+CREATE INDEX IF NOT EXISTS idx_scrape_log_lookup
+    ON scrape_log(market, year, month);
+
+CREATE INDEX IF NOT EXISTS idx_zip_listing_opp
+    ON properties(zip, listing_type, opportunity_result DESC NULLS LAST);

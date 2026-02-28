@@ -1,5 +1,5 @@
 """
-scraper.py — HomeHarvest MLS scraper adapted from working reference implementation.
+scraper.py — HomeHarvest MLS scraper.
 """
 
 import argparse
@@ -7,7 +7,6 @@ import logging
 import random
 import time
 import os
-import pandas as pd
 from datetime import date, timedelta
 from dateutil.relativedelta import relativedelta
 
@@ -16,12 +15,11 @@ from cleaner import clean, normalize_for_db
 
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
+    format="%(asctime)s %(message)s",
+    datefmt="%H:%M:%S",
 )
 logger = logging.getLogger(__name__)
 
-# Market → city search string
 MARKET_CITIES = {
     "tampa":         "Tampa, FL",
     "orlando":       "Orlando, FL",
@@ -29,208 +27,231 @@ MARKET_CITIES = {
     "winter_park":   "Winter Park, FL",
 }
 
-# Market → target ZIP codes
-MARKETS = {
-    "tampa":         ["33606", "33629", "33611"],
-    "orlando":       ["32803", "32806"],
-    "winter_garden": ["34787"],
-    "winter_park":   ["32789", "32792"],
-}
-TARGET_ZIPS = [z for zips in MARKETS.values() for z in zips]
 
 MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
 
-# Persistence
-PERSISTENT_CSV = "data/scraped_listings.csv"
+# Throttling
+MAX_RETRIES  = 3
+BACKOFF_BASE = 60
 
-# Retry / backoff constants
-MAX_RETRIES   = 3
-BACKOFF_BASE  = 60
-COOLDOWN_AFTER = 3
-COOLDOWN_SECS  = 600
 
-def _ensure_data_dir():
-    if not os.path.exists("data"):
-        os.makedirs("data")
-
-def _append_to_csv(df):
-    """Keep a persistent CSV record of all cleaned listings."""
-    _ensure_data_dir()
-    header = not os.path.exists(PERSISTENT_CSV)
-    df.to_csv(PERSISTENT_CSV, mode='a', index=False, header=header)
-    logger.info(f"[CSV] Appended {len(df)} records to {PERSISTENT_CSV}")
-
-def _check_csv_exists(zip_codes, start_date, end_date):
-    """Check if the persistent CSV already contains data for these ZIPs and dates."""
-    if not os.path.exists(PERSISTENT_CSV):
-        return False
-    
-    try:
-        # We only read the necessary columns to be memory efficient
-        df = pd.read_csv(PERSISTENT_CSV, usecols=['zip_code', 'sold_date'])
-        df['sold_date'] = pd.to_datetime(df['sold_date']).dt.date
-        df['zip_code'] = df['zip_code'].astype(str).str[:5]
-        
-        mask = (
-            (df['zip_code'].isin(zip_codes)) & 
-            (df['sold_date'] >= start_date) & 
-            (df['sold_date'] <= end_date)
-        )
-        return mask.any()
-    except Exception as e:
-        logger.warning(f"[CSV] Error checking persistence: {e}")
-        return False
+def _format_eta(seconds: float) -> str:
+    """Format a duration in seconds to a human-readable ETA string."""
+    if seconds < 60:
+        return f"~{int(seconds)}s"
+    elif seconds < 3600:
+        return f"~{int(seconds / 60)} min"
+    else:
+        h = int(seconds / 3600)
+        m = int((seconds % 3600) / 60)
+        return f"~{h}h {m}min"
 
 def _scrape_with_retry(location, listing_type, date_from=None, date_to=None, label=""):
     try:
         from homeharvest import scrape_property
-    except Exception as e:
-        logger.error(f"[ERROR] Could not import homeharvest: {e}")
+    except:
+        logger.error("[FAIL] HomeHarvest library not installed")
         return None, False
 
-    kwargs = dict(
-        location=location,
-        listing_type=listing_type,
-        property_type=["single_family"],
-    )
-    if date_from:
-        kwargs["date_from"] = date_from
-    if date_to:
-        kwargs["date_to"] = date_to
+    kwargs = dict(location=location, listing_type=listing_type, property_type=["single_family"])
+    if date_from: kwargs["date_from"] = date_from
+    if date_to: kwargs["date_to"] = date_to
 
     for attempt in range(MAX_RETRIES + 1):
         try:
-            results = scrape_property(**kwargs)
-            return results, True
+            return scrape_property(**kwargs), True
         except Exception as e:
-            err_str = str(e)
-            is_rate_limit = "403" in err_str or "ResponseError" in err_str or "429" in err_str
+            err_msg = str(e)
+            is_transient = any(m in err_msg for m in [
+                "403", "429", "IncompleteRead", "Connection broken",
+                "Connection aborted", "RemoteDisconnected", "Remote end closed",
+                "SSL", "timeout", "Connection reset", "EOF", "Read timed out",
+            ])
 
-            if is_rate_limit and attempt < MAX_RETRIES:
-                backoff = BACKOFF_BASE * (2 ** attempt)
-                logger.warning(f"[WAIT] 403 on {label} (attempt {attempt+1}/{MAX_RETRIES}) — backoff {backoff}s...")
-                _countdown(backoff, step=15)
+            if is_transient and attempt < MAX_RETRIES:
+                wait = BACKOFF_BASE * (2 ** attempt)
+                logger.warning(f"[WARN] Retry {attempt+1}/{MAX_RETRIES} for {label} — waiting {wait}s")
+                time.sleep(wait)
             else:
-                logger.error(f"[ERROR] {label}: {e}")
+                logger.error(f"[FAIL] Request failed for {label}: {err_msg}")
                 return None, False
     return None, False
 
-def _countdown(seconds, step=5):
-    elapsed = 0
-    while elapsed < seconds:
-        remaining = seconds - elapsed
-        chunk = min(step, remaining)
-        logger.info(f"[WAIT] Resuming in {remaining}s...")
-        time.sleep(chunk)
-        elapsed += chunk
-
-def _filter_to_zips(df, target_zips):
-    if not target_zips: return df
-    for col in ["zip_code", "postal_code", "zip"]:
-        if col in df.columns:
-            mask = df[col].astype(str).str[:5].isin(set(target_zips))
-            return df[mask]
-    return df
-
-def scrape_sold_range(market_or_zip, start_ym, end_ym, dry_run=False, force_renew=False, all_zips=False):
+def scrape_sold_range(market_or_zip, start_ym, end_ym, throttle=None, dry_run=False, force_renew=False, all_zips=False):
     db.ensure_schema()
-    existing_ids = db.fetch_all_existing_mls_ids()
-    logger.info(f"[INFO] Loaded {len(existing_ids)} existing MLS IDs to prevent duplicates")
+
+    # Only skip IDs already stored as sold — for_sale IDs should be re-processed
+    # so they get updated to sold with sold_price/sold_date
+    sold_ids = db.fetch_sold_mls_ids()
+    logger.info(f"[SYST] Loaded {len(sold_ids)} existing sold MLS IDs for deduplication")
 
     if market_or_zip in MARKET_CITIES:
-        location, target_zips = MARKET_CITIES[market_or_zip], MARKETS[market_or_zip] if not all_zips else None
+        # Always fetch all ZIPs HomeHarvest returns for the city — no hardcoded filter
+        location, target_zips = MARKET_CITIES[market_or_zip], None
     else:
         location, target_zips = market_or_zip, [market_or_zip]
 
-    start_date_obj, end_date_obj = _parse_ym(start_ym), _parse_ym(end_ym)
-    tasks = []
-    current = start_date_obj
+    current = _parse_ym(start_ym)
+    end_date_obj = _parse_ym(end_ym)
+    all_tasks = []
     while current <= end_date_obj:
-        chunk_start = current
-        chunk_end = (current + relativedelta(months=1)) - timedelta(days=1)
-        tasks.append((chunk_start, chunk_end))
+        all_tasks.append((current, (current + relativedelta(months=1)) - timedelta(days=1)))
         current += relativedelta(months=1)
 
+    t_min = max(5, int(throttle * 0.8)) if throttle else 5
+    t_max = max(8, int(throttle * 1.2)) if throttle else 15
+    t_avg = (t_min + t_max) / 2
+
+    # Pre-determine which months actually need fetching (vs already cached)
+    if not force_renew:
+        to_fetch = [
+            (cs, ce) for cs, ce in all_tasks
+            if not db.check_chunk_completed(market_or_zip, cs.month, cs.year, "sold")
+        ]
+        cached_count = len(all_tasks) - len(to_fetch)
+    else:
+        to_fetch = list(all_tasks)
+        cached_count = 0
+
+    if cached_count > 0:
+        logger.info(f"[SKIP] {cached_count} of {len(all_tasks)} months already cached")
+
+    if not to_fetch:
+        logger.info(f"[EXEC] All {len(all_tasks)} months already cached for {location} — nothing to fetch")
+        return 0
+
+    # Estimate: throttle avg + ~6s for network per chunk
+    est_seconds = len(to_fetch) * (t_avg + 6)
+    logger.info(f"[EXEC] Scraping {len(to_fetch)} months for {location} (throttle {t_min}-{t_max}s) — est. {_format_eta(est_seconds)}")
+
     total_upserted = 0
-    for i, (chunk_start, chunk_end) in enumerate(tasks):
-        progress = f"[{i+1}/{len(tasks)}]"
-        month_label = f"{MONTH_NAMES[chunk_start.month-1]} {chunk_start.year}"
+    failed_chunks = []
+    start_time = time.time()
 
-        # 1. Check Database
-        if not force_renew and target_zips:
-            db_exists = db.check_month_exists(target_zips, chunk_start, chunk_end)
-            if db_exists:
-                logger.info(f"[SKIP] {progress} {location} · {month_label} already in Database")
-                continue
-        
-        # 2. Check CSV Persistence
-        if not force_renew and target_zips:
-            csv_exists = _check_csv_exists(target_zips, chunk_start, chunk_end)
-            if csv_exists:
-                logger.info(f"[SKIP] {progress} {location} · {month_label} already in persistent CSV")
-                continue
+    for i, (cs, ce) in enumerate(to_fetch):
+        month_label = f"{MONTH_NAMES[cs.month-1]} {cs.year}"
+        progress = f"({i+1}/{len(to_fetch)})"
 
-        results, ok = _scrape_with_retry(
-            location=location, listing_type="sold",
-            date_from=chunk_start.strftime("%Y-%m-%d"),
-            date_to=chunk_end.strftime("%Y-%m-%d"),
-            label=f"{location} {month_label}"
-        )
+        if i > 0:
+            wait = random.randint(t_min, t_max)
+            logger.info(f"[SYST] Waiting {wait}s...")
+            time.sleep(wait)
 
-        if ok and results is not None and not results.empty:
-            # Persistent Row Skipping Logic
-            if not force_renew and 'mls_id' in results.columns:
-                initial_count = len(results)
-                results = results[~results['mls_id'].astype(str).isin(existing_ids)]
-                skipped = initial_count - len(results)
-                if skipped > 0:
-                    logger.info(f"[SKIP] {progress} {skipped}/{initial_count} listings already in database")
+        logger.info(f"[NETW] Fetching {month_label} {progress}...")
+        results, ok = _scrape_with_retry(location, "sold", cs.strftime("%Y-%m-%d"), ce.strftime("%Y-%m-%d"), f"{location} {month_label}")
 
-            if not results.empty:
-                results = _filter_to_zips(results, target_zips)
-                cleaned = clean(results)
-                if not cleaned.empty:
-                    _append_to_csv(cleaned)
-                    records = normalize_for_db(cleaned)
-                    if not dry_run:
-                        count = db.upsert_properties(records, listing_type="sold")
-                        total_upserted += count
-                        logger.info(f"[SAVED] {progress} {count} new records added")
-        
-        if i < len(tasks) - 1:
-            wait = random.randint(20, 45)
-            _countdown(wait)
+        if ok:
+            upserted = 0
+            if results is not None and not results.empty:
+                # Only skip IDs already stored as sold — not for_sale IDs
+                results = results[~results['mls_id'].astype(str).isin(sold_ids)]
 
+                if not results.empty:
+                    results = _filter_to_zips(results, target_zips)
+                    cleaned = clean(results)
+                    if not cleaned.empty:
+                        if not dry_run:
+                            records = normalize_for_db(cleaned)
+                            upserted = db.upsert_properties(records, "sold")
+                            total_upserted += upserted
+                            sold_ids.update(str(r["mls_id"]) for r in records)
+
+                if upserted > 0:
+                    logger.info(f"[LOAD] Saved {upserted} new listings — {location}, {month_label}")
+                else:
+                    logger.info(f"[SYST] No new listings — {location}, {month_label}")
+            else:
+                logger.info(f"[SYST] No data returned — {location}, {month_label}")
+
+            if not dry_run:
+                db.mark_chunk_completed(market_or_zip, cs.month, cs.year, "sold")
+        else:
+            failed_chunks.append((cs, ce))
+
+        # Running ETA after each chunk (except the last)
+        chunks_done = i + 1
+        if chunks_done < len(to_fetch):
+            elapsed = time.time() - start_time
+            avg_per_chunk = elapsed / chunks_done
+            remaining_eta = _format_eta((len(to_fetch) - chunks_done) * avg_per_chunk)
+            logger.info(f"[SYST] {chunks_done}/{len(to_fetch)} months done — {remaining_eta} remaining")
+
+    # Second pass: retry any months that failed in the main loop, using a safe 30s wait
+    # regardless of the requested throttle speed, to guarantee data completeness.
+    if failed_chunks:
+        logger.info(f"[RETRY] {len(failed_chunks)} month(s) failed — retrying with 30s safety wait to ensure complete data")
+        for cs, ce in failed_chunks:
+            month_label = f"{MONTH_NAMES[cs.month-1]} {cs.year}"
+            logger.info(f"[SYST] Waiting 30s before retry...")
+            time.sleep(30)
+            logger.info(f"[NETW] Retry: {month_label}...")
+            results, ok = _scrape_with_retry(location, "sold", cs.strftime("%Y-%m-%d"), ce.strftime("%Y-%m-%d"), f"{location} {month_label} [retry]")
+            if ok:
+                upserted = 0
+                if results is not None and not results.empty:
+                    results = results[~results['mls_id'].astype(str).isin(sold_ids)]
+                    if not results.empty:
+                        results = _filter_to_zips(results, target_zips)
+                        cleaned = clean(results)
+                        if not cleaned.empty and not dry_run:
+                            records = normalize_for_db(cleaned)
+                            upserted = db.upsert_properties(records, "sold")
+                            total_upserted += upserted
+                            sold_ids.update(str(r["mls_id"]) for r in records)
+                if not dry_run:
+                    db.mark_chunk_completed(market_or_zip, cs.month, cs.year, "sold")
+                logger.info(f"[LOAD] Retry succeeded — {upserted} listings saved for {location}, {month_label}")
+            else:
+                logger.error(f"[FAIL] {location}, {month_label} still failed — will retry on next run")
+
+    logger.info(f"[EXEC] Done — {total_upserted} total properties saved")
     return total_upserted
 
-def scrape_for_sale(market_or_zip, dry_run=False, all_zips=False):
+def scrape_for_sale(market_or_zip, throttle=None, dry_run=False, all_zips=False):
     db.ensure_schema()
+
     if market_or_zip in MARKET_CITIES:
-        location, target_zips = MARKET_CITIES[market_or_zip], MARKETS[market_or_zip] if not all_zips else None
+        # Always fetch all ZIPs HomeHarvest returns for the city — no hardcoded filter
+        location, target_zips = MARKET_CITIES[market_or_zip], None
     else:
         location, target_zips = market_or_zip, [market_or_zip]
 
-    results, ok = _scrape_with_retry(location=location, listing_type="for_sale", label=location)
+    # Active listings are always re-fetched — prices change, and properties that were
+    # previously sold may relist. No in-memory dedup: the upsert handles duplicates.
+    logger.info(f"[EXEC] Fetching active listings for {location} (single request)...")
+    results, ok = _scrape_with_retry(location, "for_sale", label=location)
+
     if ok and results is not None and not results.empty:
         results = _filter_to_zips(results, target_zips)
         cleaned = clean(results)
-        if not cleaned.empty:
-            _append_to_csv(cleaned)
-            records = normalize_for_db(cleaned)
-            if not dry_run:
-                return db.upsert_properties(records, listing_type="for_sale")
+        if not cleaned.empty and not dry_run:
+            count = db.upsert_properties(normalize_for_db(cleaned), "for_sale")
+            logger.info(f"[LOAD] Saved {count} active listings")
+            return count
+        elif cleaned.empty:
+            logger.info("[SKIP] No listings passed quality filters")
+    else:
+        logger.info("[SKIP] No active listings returned")
+
+    logger.info("[EXEC] Audit complete")
     return 0
 
 def _parse_ym(ym):
     p = ym.split("-")
     return date(int(p[0]), int(p[1]), 1)
 
-def _resolve_targets(zip_arg, market_arg):
-    if zip_arg: return [zip_arg]
-    market = market_arg.lower()
-    if market == "all": return list(MARKET_CITIES.keys())
-    if market in MARKETS: return [market]
-    raise ValueError(f"Unknown market '{market_arg}'")
+def _filter_to_zips(df, tz):
+    if not tz: return df
+    for c in ["zip_code", "postal_code", "zip"]:
+        if c in df.columns: return df[df[c].astype(str).str[:5].isin(set(tz))]
+    return df
+
+def _resolve_targets(za, ma):
+    if za: return [za]
+    m = ma.lower()
+    if m == "all": return list(MARKET_CITIES.keys())
+    if m in MARKET_CITIES: return [m]
+    raise ValueError(f"Unknown market '{ma}'")
 
 def main():
     parser = argparse.ArgumentParser()
@@ -240,6 +261,7 @@ def main():
     parser.add_argument("--type", choices=["sold", "for_sale"], default="sold")
     parser.add_argument("--start")
     parser.add_argument("--end")
+    parser.add_argument("--throttle", type=int, help="Target wait time between chunks in seconds")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--force-renew", action="store_true")
     parser.add_argument("--all-zips", action="store_true")
@@ -248,9 +270,9 @@ def main():
     targets = _resolve_targets(args.zip, args.market)
     for target in targets:
         if args.type == "sold":
-            scrape_sold_range(target, args.start, args.end, args.dry_run, args.force_renew, args.all_zips)
+            scrape_sold_range(target, args.start, args.end, throttle=args.throttle, dry_run=args.dry_run, force_renew=args.force_renew, all_zips=args.all_zips)
         else:
-            scrape_for_sale(target, args.dry_run, args.all_zips)
+            scrape_for_sale(target, throttle=args.throttle, dry_run=args.dry_run, all_zips=args.all_zips)
 
 if __name__ == "__main__":
     main()

@@ -47,9 +47,10 @@ router.get("/:id/comparables", async (req, res) => {
 
     // 2. Find sold comps in same zip with similar sqft
     const compsQuery = `
-      SELECT 
-        id, address, city, zip, year_built, sqft, 
-        list_price, sold_price, sold_date, 
+      SELECT
+        id, address, city, zip, year_built, sqft,
+        list_price, sold_price, sold_date,
+        lat, lng,
         opportunity_result, predicted_rebuild_value
       FROM properties
       WHERE zip = $1 
@@ -77,8 +78,15 @@ router.get("/", async (req, res) => {
 
   const zip = req.query.zip || null;
   const city = req.query.city || null;
-  const minRoi = parseInt(req.query.min_roi) || null;
-  const maxYearBuilt = parseInt(req.query.max_year_built) || null;
+  const minRoi = req.query.min_roi !== undefined ? parseInt(req.query.min_roi, 10) : null;
+  const maxYearBuilt = req.query.max_year_built !== undefined ? parseInt(req.query.max_year_built, 10) : null;
+
+  if (minRoi !== null && isNaN(minRoi)) {
+    return res.status(400).json({ error: "min_roi must be a number" });
+  }
+  if (maxYearBuilt !== null && isNaN(maxYearBuilt)) {
+    return res.status(400).json({ error: "max_year_built must be a number" });
+  }
   const listingType = req.query.listing_type || "for_sale";
   const limit = Math.min(parseInt(req.query.limit) || 1000, 5000);
 

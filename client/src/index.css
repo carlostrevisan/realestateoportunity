@@ -3,48 +3,66 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Theme Variables */
+/*
+  PALANTIR-INSPIRED DESIGN PALETTE
+  Modern, readable, professional
+*/
+
 :root {
-  --plt-bg: #ffffff;
-  --plt-panel: #f4f4f5;
+  /* Light Mode */
+  --plt-bg: #f5f7fb;
+  --plt-panel: #edf0f7;
   --plt-surface: #ffffff;
-  --plt-border: #e4e4e7;
-  --plt-hover: #f1f5f9;
-  --plt-accent: #3b82f6;
-  --plt-accent-dim: #2563eb;
-  --plt-green: #10b981; /* Standard green in light mode */
-  --plt-text-primary: #09090b;
-  --plt-text-secondary: #52525b;
-  --plt-text-muted: #a1a1aa;
-  --map-bg: #f4f4f5;
-  
-  --opportunity-green: #10b981;
-  --opportunity-yellow: #f59e0b;
-  --opportunity-red: #ef4444;
-  --opportunity-gray: #a1a1aa;
+  --plt-border: #d1d8e8;
+  --plt-hover: #e4e9f4;
+
+  --plt-accent: #2563eb;
+  --plt-accent-glow: rgba(37, 99, 235, 0.12);
+
+  --plt-text-primary: #0f172a;
+  --plt-text-secondary: #475569;
+  --plt-text-muted: #7c8fac;
+
+  --plt-success: #059669;
+  --plt-warning: #d97706;
+  --plt-danger: #dc2626;
+
+  --map-bg: #edf0f7;
+
+  --opportunity-green: #059669;
+  --opportunity-yellow: #d97706;
+  --opportunity-red: #f43f5e;
+  --opportunity-gray: #9ca3af;
 }
 
 .dark {
-  --plt-bg: #07090f;
-  --plt-panel: #0d1117;
-  --plt-surface: #111827;
-  --plt-border: #1f2937;
-  --plt-hover: #1a2438;
-  --plt-accent: #3b82f6;      /* Blue accent */
-  --plt-accent-dim: #2563eb;  /* Dimmer blue */
-  --plt-green: #3b82f6;       /* Map "green" to blue in dark mode as requested */
-  --plt-text-primary: #e2e8f0;
-  --plt-text-secondary: #94a3b8;
-  --plt-text-muted: #4b5563;
-  --map-bg: #07090f;
+  /* Dark Mode */
+  --plt-bg: #0d1117;
+  --plt-panel: #161c2e;
+  --plt-surface: #1e2540;
+  --plt-border: #2d3654;
+  --plt-hover: #242d47;
 
-  --opportunity-green: #10b981;
-  --opportunity-yellow: #f59e0b;
-  --opportunity-red: #ef4444;
-  --opportunity-gray: #a1a1aa;
+  --plt-accent: #60a5fa;
+  --plt-accent-glow: rgba(96, 165, 250, 0.15);
+
+  --plt-text-primary: #f1f5f9;
+  --plt-text-secondary: #94a3b8;
+  --plt-text-muted: #64748b;
+
+  --plt-success: #34d399;
+  --plt-warning: #fbbf24;
+  --plt-danger: #f87171;
+
+  --map-bg: #0d1117;
+
+  --opportunity-green: #34d399;
+  --opportunity-yellow: #fbbf24;
+  --opportunity-red: #f43f5e;
+  --opportunity-gray: #64748b;
 }
 
-/* Base */
+/* Base resets */
 html, body, #root {
   height: 100vh;
   width: 100vw;
@@ -56,81 +74,72 @@ html, body, #root {
 body {
   background-color: var(--plt-bg);
   color: var(--plt-text-primary);
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  transition: background-color 0.2s, color 0.2s;
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
-/* LEAFLET RENDERING FIXES */
-.leaflet-container {
-  width: 100% !important;
-  height: 100% !important;
-  background: var(--map-bg) !important;
-  outline: none;
-  z-index: 1;
-  /* Disable transitions which break tile calculations */
-  transition: none !important;
-}
-
-/* CRITICAL: Fix for Checkerboard/Broken Puzzle */
-.leaflet-tile-container img {
-  width: 256.5px !important; /* Tiny overlap to prevent gaps */
-  height: 256.5px !important;
-  max-width: none !important;
-  max-height: none !important;
-}
-
-/* Ensure tiles are correctly positioned */
-.leaflet-tile {
-  visibility: inherit !important;
-}
-
-.leaflet-grab {
-  cursor: grab !important;
-}
-
-/* Scrollbar — Themed */
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: var(--plt-panel); }
-::-webkit-scrollbar-thumb { background: var(--plt-border); border-radius: 3px; }
+/* Scrollbar styling - Industrial */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--plt-border); border-radius: 10px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--plt-text-muted); }
 
-/* Range input Palantir accent */
-input[type="range"] {
-  -webkit-appearance: none;
-  appearance: none;
-  height: 3px;
-  border-radius: 2px;
-  background: var(--plt-border);
-  outline: none;
-}
-input[type="range"]::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: var(--plt-accent);
-  cursor: pointer;
-  border: 2px solid var(--plt-bg);
-  box-shadow: 0 0 4px rgba(59, 130, 246, 0.3);
-}
-input[type="range"]::-moz-range-thumb {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: var(--plt-accent);
-  cursor: pointer;
-  border: 2px solid var(--plt-bg);
+/* Tactical Input Fields */
+input[type="number"], 
+input[type="month"],
+select {
+  background-color: var(--plt-surface) !important;
+  border: 1px solid var(--plt-border) !important;
+  color: var(--plt-text-primary) !important;
+  transition: all 0.2s ease;
 }
 
-/* Terminal / console log styling */
-.console-log {
-  font-family: 'Cascadia Code', Consolas, 'Courier New', monospace;
-  font-size: 11px;
-  line-height: 1.6;
+input:focus, select:focus {
+  outline: none !important;
+  border-color: var(--plt-accent) !important;
+  box-shadow: 0 0 0 2px var(--plt-accent-glow) !important;
 }
 
-/* Subtle glow on active status indicators */
-.status-dot-active {
-  box-shadow: 0 0 6px var(--plt-accent);
+/* Leaflet Overrides */
+.leaflet-container {
+  background: var(--map-bg) !important;
+  transition: none !important;
+  cursor: crosshair;
+}
+
+.leaflet-grab { cursor: grab; }
+.leaflet-dragging .leaflet-grab { cursor: grabbing !important; }
+.leaflet-interactive { cursor: pointer; }
+
+.leaflet-tile-container img {
+  filter: grayscale(0.2) contrast(1.1);
+}
+
+.dark .leaflet-tile-container img {
+  filter: invert(100%) hue-rotate(180deg) brightness(0.8) contrast(1.2) grayscale(0.1);
+}
+
+/* Global Tactical Utilities */
+.tactical-panel {
+  background: var(--plt-panel);
+  border: 1px solid var(--plt-border);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.mono-tag {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+@keyframes pulse-accent {
+  0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4); }
+  70% { box-shadow: 0 0 0 6px rgba(59, 130, 246, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+}
+
+.status-active {
+  animation: pulse-accent 2s infinite;
 }

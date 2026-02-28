@@ -33,11 +33,11 @@ def clean(df: pd.DataFrame) -> pd.DataFrame:
         Cleaned DataFrame with only valid single-family teardown candidates.
     """
     if df is None or df.empty:
-        logger.warning("[cleaner] Received empty DataFrame — skipping")
+        logger.warning("[WARN] Received empty DataFrame — skipping")
         return pd.DataFrame()
 
     original_count = len(df)
-    logger.info(f"[cleaner] Starting with {original_count} rows")
+    logger.info(f"[DATA] Cleaning {original_count} rows...")
 
     # Normalize column names (HomeHarvest may vary)
     df.columns = [c.lower().strip() for c in df.columns]
@@ -47,9 +47,9 @@ def clean(df: pd.DataFrame) -> pd.DataFrame:
     if type_col:
         mask = df[type_col].astype(str).str.upper().str.contains("SINGLE.FAMILY|SINGLE_FAMILY", regex=True, na=False)
         df = df[mask]
-        logger.info(f"[cleaner] After type filter: {len(df)} rows (removed {original_count - len(df)})")
+        logger.info(f"[DATA] After type filter: {len(df)} rows (removed {original_count - len(df)})")
     else:
-        logger.warning("[cleaner] No property_type column found — skipping type filter")
+        logger.warning("[WARN] No property_type column found — skipping type filter")
 
     # 2. Price filter ($100k – $5M)
     price_col = _find_col(df, ["list_price", "price", "sold_price"])
@@ -59,7 +59,7 @@ def clean(df: pd.DataFrame) -> pd.DataFrame:
             (df[price_col] >= MIN_PRICE) &
             (df[price_col] <= MAX_PRICE)
         ]
-        logger.info(f"[cleaner] After price filter: {len(df)} rows")
+        logger.info(f"[DATA] After price filter: {len(df)} rows")
 
     # 3. Year built > 1901
     year_col = _find_col(df, ["year_built", "yearbuilt"])
@@ -68,7 +68,7 @@ def clean(df: pd.DataFrame) -> pd.DataFrame:
             df[year_col].notna() &
             (df[year_col] > MIN_YEAR_BUILT)
         ]
-        logger.info(f"[cleaner] After year filter: {len(df)} rows")
+        logger.info(f"[DATA] After year filter: {len(df)} rows")
 
     # 4. Square footage < 5,000
     sqft_col = _find_col(df, ["sqft", "square_feet", "living_sqft", "lot_sqft"])
@@ -78,19 +78,19 @@ def clean(df: pd.DataFrame) -> pd.DataFrame:
             (df[sqft_col] < MAX_SQFT) &
             (df[sqft_col] > 0)
         ]
-        logger.info(f"[cleaner] After sqft filter: {len(df)} rows")
+        logger.info(f"[DATA] After sqft filter: {len(df)} rows")
 
     # 5. Coordinates must be non-null
     lat_col = _find_col(df, ["latitude", "lat"])
     lng_col = _find_col(df, ["longitude", "lng", "lon"])
     if lat_col and lng_col:
         df = df[df[lat_col].notna() & df[lng_col].notna()]
-        logger.info(f"[cleaner] After coordinates filter: {len(df)} rows")
+        logger.info(f"[DATA] After coordinates filter: {len(df)} rows")
     else:
-        logger.warning("[cleaner] lat/lng columns not found — keeping all rows")
+        logger.warning("[WARN] lat/lng columns not found — keeping all rows")
 
     removed = original_count - len(df)
-    logger.info(f"[cleaner] Done — {len(df)} valid rows ({removed} removed)")
+    logger.info(f"[DATA] Cleaning done — {len(df)} valid rows ({removed} removed)")
 
     return df.reset_index(drop=True)
 

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
+  <!-- Background rounded square matching the nav logo -->
+  <rect width="32" height="32" rx="7" fill="#2563eb"/>
+  <!-- Subtle inner glow ring -->
+  <rect x="1" y="1" width="30" height="30" rx="6" stroke="rgba(255,255,255,0.18)" stroke-width="1.5" fill="none"/>
+  <!-- House silhouette — represents real estate -->
+  <path d="M16 7L6 14.5V25h7v-6h6v6h7V14.5L16 7Z" fill="white" fill-opacity="0.95"/>
+  <!-- Door cutout -->
+  <rect x="13.5" y="19" width="5" height="6" rx="1" fill="#2563eb"/>
+</svg>

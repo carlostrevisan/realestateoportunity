@@ -1,7 +1,5 @@
 """
 db.py — Single source of truth for all PostgreSQL operations.
-
-All other modules import from here; none call psycopg2 directly.
 """
 
 import os
@@ -20,13 +18,11 @@ if not DATABASE_URL:
 
 
 def get_connection():
-    """Return a new psycopg2 connection."""
     return psycopg2.connect(DATABASE_URL)
 
 
 @contextmanager
 def get_cursor(commit: bool = True):
-    """Context manager yielding a DictCursor; auto-commits or rolls back."""
     conn = get_connection()
     try:
         with conn:
@@ -42,10 +38,6 @@ def get_cursor(commit: bool = True):
 
 
 def ensure_schema():
-    """
-    Create tables and indexes if they don't exist.
-    Safe to call repeatedly (uses IF NOT EXISTS).
-    """
     ddl = """
         CREATE TABLE IF NOT EXISTS properties (
             id                          SERIAL PRIMARY KEY,
@@ -70,6 +62,17 @@ def ensure_schema():
             updated_at                  TIMESTAMPTZ DEFAULT NOW()
         );
 
+        -- New table to track successfully completed scrapes
+        CREATE TABLE IF NOT EXISTS scrape_log (
+            id          SERIAL PRIMARY KEY,
+            market      VARCHAR(100),  -- e.g. 'tampa' or '33629'
+            month       INTEGER,
+            year        INTEGER,
+            scrape_type VARCHAR(20),   -- 'sold' or 'for_sale'
+            created_at  TIMESTAMPTZ DEFAULT NOW(),
+            UNIQUE(market, month, year, scrape_type)
+        );
+
         CREATE TABLE IF NOT EXISTS zip_income (
             zip                     VARCHAR(10) PRIMARY KEY,
             median_household_income INTEGER,
@@ -85,40 +88,33 @@ def ensure_schema():
             properties_trained  INTEGER,
             properties_scored   INTEGER,
             r2_score            DECIMAL(5,4),
-            error_message       TEXT
+            error_message       TEXT,
+            model_path          VARCHAR(255),
+            training_context    JSONB,
+            is_active           BOOLEAN DEFAULT FALSE
         );
 
-        CREATE INDEX IF NOT EXISTS idx_properties_zip
-            ON properties(zip);
-        CREATE INDEX IF NOT EXISTS idx_properties_opportunity
-            ON properties(opportunity_result DESC);
-        CREATE INDEX IF NOT EXISTS idx_properties_year_built
-            ON properties(year_built);
-        CREATE INDEX IF NOT EXISTS idx_properties_listing_type
-            ON properties(listing_type);
+        -- Migrate existing DBs: add new columns if they don't exist yet
+        ALTER TABLE model_runs ADD COLUMN IF NOT EXISTS model_path       VARCHAR(255);
+        ALTER TABLE model_runs ADD COLUMN IF NOT EXISTS training_context JSONB;
+        ALTER TABLE model_runs ADD COLUMN IF NOT EXISTS is_active        BOOLEAN DEFAULT FALSE;
+        ALTER TABLE model_runs ADD COLUMN IF NOT EXISTS name             VARCHAR(100);
+        ALTER TABLE model_runs ADD COLUMN IF NOT EXISTS description      TEXT;
+
+        CREATE INDEX IF NOT EXISTS idx_properties_zip ON properties(zip);
+        CREATE INDEX IF NOT EXISTS idx_properties_opportunity ON properties(opportunity_result DESC);
+        CREATE INDEX IF NOT EXISTS idx_properties_listing_type ON properties(listing_type);
+        CREATE INDEX IF NOT EXISTS idx_properties_year_built ON properties(year_built);
+        CREATE INDEX IF NOT EXISTS idx_scrape_log_lookup ON scrape_log(market, year, month);
+        CREATE INDEX IF NOT EXISTS idx_zip_listing_opp ON properties(zip, listing_type, opportunity_result DESC NULLS LAST);
     """
     with get_cursor() as cur:
         cur.execute(ddl)
-    logger.info("[db] Schema ensured")
 
 
 def upsert_properties(records: list[dict], listing_type: str = "sold") -> int:
-    """
-    Insert or update properties using mls_id as the conflict key.
-
-    Args:
-        records:      List of dicts with keys matching the properties table columns.
-        listing_type: 'sold' or 'for_sale' — written to every row in this batch.
-
-    Returns:
-        Number of rows upserted.
-    """
-    if not records:
-        return 0
-
-    # Inject listing_type into every record
-    for r in records:
-        r["listing_type"] = listing_type
+    if not records: return 0
+    for r in records: r["listing_type"] = listing_type
 
     insert_sql = """
         INSERT INTO properties (
@@ -133,9 +129,6 @@ def upsert_properties(records: list[dict], listing_type: str = "sold") -> int:
             %(listing_type)s, NOW()
         )
         ON CONFLICT (mls_id) DO UPDATE SET
-            address       = EXCLUDED.address,
-            lat           = EXCLUDED.lat,
-            lng           = EXCLUDED.lng,
             list_price    = EXCLUDED.list_price,
             sold_price    = EXCLUDED.sold_price,
             sold_date     = EXCLUDED.sold_date,
@@ -143,65 +136,51 @@ def upsert_properties(records: list[dict], listing_type: str = "sold") -> int:
             updated_at    = NOW()
         WHERE properties.updated_at < EXCLUDED.updated_at
     """
-
     with get_cursor() as cur:
         psycopg2.extras.execute_batch(cur, insert_sql, records, page_size=100)
-        count = len(records)
-
-    logger.info(f"[db] Upserted {count} {listing_type} properties")
-    return count
+        return len(records)
 
 
-def check_month_exists(zip_codes: list[str], start_date: date, end_date: date) -> bool:
-    """
-    Check if we already have a significant amount of data for these ZIPs in this month.
-    Used to skip redundant scrapes.
-    """
+def check_chunk_completed(market: str, month: int, year: int, scrape_type: str) -> bool:
+    """Check the scrape_log table to see if this specific month/market is done."""
+    query = "SELECT 1 FROM scrape_log WHERE market = %s AND month = %s AND year = %s AND scrape_type = %s"
+    with get_cursor() as cur:
+        cur.execute(query, (market, month, year, scrape_type))
+        return cur.fetchone() is not None
+
+
+def mark_chunk_completed(market: str, month: int, year: int, scrape_type: str):
+    """Log that a specific month/market has been fully processed."""
     query = """
-        SELECT COUNT(*) as cnt FROM properties
-        WHERE zip = ANY(%s)
-          AND sold_date >= %s
-          AND sold_date <= %s
-          AND listing_type = 'sold'
+        INSERT INTO scrape_log (market, month, year, scrape_type) 
+        VALUES (%s, %s, %s, %s)
+        ON CONFLICT (market, month, year, scrape_type) DO NOTHING
     """
     with get_cursor() as cur:
-        cur.execute(query, (zip_codes, start_date, end_date))
-        row = cur.fetchone()
-        return row["cnt"] > 0
+        cur.execute(query, (market, month, year, scrape_type))
 
 
-def upsert_zip_income(zip_code: str, median_income: int):
-    """Insert or update median household income for a ZIP code."""
-    sql_str = """
-        INSERT INTO zip_income (zip, median_household_income, fetched_at)
-        VALUES (%s, %s, NOW())
-        ON CONFLICT (zip) DO UPDATE SET
-            median_household_income = EXCLUDED.median_household_income,
-            fetched_at = NOW()
-    """
+def fetch_all_existing_mls_ids() -> set[str]:
     with get_cursor() as cur:
-        cur.execute(sql_str, (zip_code, median_income))
-    logger.info(f"[db] Upserted income for ZIP {zip_code}: ${median_income:,}")
+        cur.execute("SELECT mls_id FROM properties WHERE mls_id IS NOT NULL")
+        return {str(row["mls_id"]) for row in cur.fetchall()}
+
+
+def fetch_sold_mls_ids() -> set[str]:
+    """Returns only MLS IDs already stored as sold — used to skip re-processing sold history."""
+    with get_cursor() as cur:
+        cur.execute("SELECT mls_id FROM properties WHERE mls_id IS NOT NULL AND listing_type = 'sold'")
+        return {str(row["mls_id"]) for row in cur.fetchall()}
 
 
 def fetch_sold_for_training() -> list[dict]:
-    """
-    Fetch sold properties suitable for ML training.
-    Uses recent new-build sold properties (year_built > 2015) as training data
-    since their sold_price approximates what a new rebuild would sell for.
-    """
     query = """
-        SELECT
-            p.id, p.mls_id, p.zip, p.sqft, p.lot_sqft, p.year_built,
-            p.list_price, p.sold_price, p.construction_cost_per_sqft,
-            zi.median_household_income
+        SELECT p.id, p.mls_id, p.zip, p.city, p.sqft, p.lot_sqft, p.year_built,
+               p.list_price, p.sold_price, p.sold_date,
+               p.construction_cost_per_sqft, zi.median_household_income
         FROM properties p
         LEFT JOIN zip_income zi ON p.zip = zi.zip
-        WHERE p.listing_type = 'sold'
-          AND p.sqft IS NOT NULL
-          AND p.sqft > 0
-          AND p.sold_price IS NOT NULL
-          AND p.sold_price > 0
+        WHERE p.listing_type = 'sold' AND p.sqft > 0 AND p.sold_price > 0
         ORDER BY p.id
     """
     with get_cursor() as cur:
@@ -210,22 +189,12 @@ def fetch_sold_for_training() -> list[dict]:
 
 
 def fetch_for_sale_for_scoring() -> list[dict]:
-    """
-    Fetch active for-sale properties to apply opportunity scoring.
-    These are the candidates we want to identify as teardown opportunities.
-    """
     query = """
-        SELECT
-            p.id, p.mls_id, p.zip, p.sqft, p.lot_sqft, p.year_built,
-            p.list_price, p.sold_price, p.construction_cost_per_sqft,
-            zi.median_household_income
+        SELECT p.id, p.mls_id, p.zip, p.sqft, p.lot_sqft, p.year_built, p.list_price, p.sold_price, 
+               p.construction_cost_per_sqft, zi.median_household_income
         FROM properties p
         LEFT JOIN zip_income zi ON p.zip = zi.zip
-        WHERE p.listing_type = 'for_sale'
-          AND p.sqft IS NOT NULL
-          AND p.sqft > 0
-          AND p.list_price IS NOT NULL
-          AND p.list_price > 0
+        WHERE p.listing_type = 'for_sale' AND p.sqft > 0 AND p.list_price > 0
         ORDER BY p.id
     """
     with get_cursor() as cur:
@@ -234,105 +203,87 @@ def fetch_for_sale_for_scoring() -> list[dict]:
 
 
 def write_opportunity_scores(scores: list[dict]):
-    """
-    Write ML-computed scores back to the properties table.
-
-    Args:
-        scores: List of dicts with keys: id, predicted_rebuild_value, opportunity_result
-    """
-    if not scores:
-        return
-
-    update_sql = """
-        UPDATE properties SET
-            predicted_rebuild_value = %(predicted_rebuild_value)s,
-            opportunity_result      = %(opportunity_result)s,
-            updated_at              = NOW()
-        WHERE id = %(id)s
-    """
+    if not scores: return
+    update_sql = "UPDATE properties SET predicted_rebuild_value=%(predicted_rebuild_value)s, opportunity_result=%(opportunity_result)s, updated_at=NOW() WHERE id=%(id)s"
     with get_cursor() as cur:
         psycopg2.extras.execute_batch(cur, update_sql, scores, page_size=100)
-    logger.info(f"[db] Wrote {len(scores)} opportunity scores")
 
 
-# ── model_runs tracking ──────────────────────────────────────────────
+def upsert_zip_income(zip_code: str, income: int):
+    query = """
+        INSERT INTO zip_income (zip, median_household_income, fetched_at)
+        VALUES (%s, %s, NOW())
+        ON CONFLICT (zip) DO UPDATE SET
+            median_household_income = EXCLUDED.median_household_income,
+            fetched_at = NOW()
+    """
+    with get_cursor() as cur:
+        cur.execute(query, (zip_code, income))
+
 
 def start_model_run(run_type: str) -> int:
-    """Insert a new model_runs row with status='running'. Returns the run id."""
     with get_cursor() as cur:
-        cur.execute(
-            "INSERT INTO model_runs (run_type, status) VALUES (%s, 'running') RETURNING id",
-            (run_type,)
-        )
+        cur.execute("INSERT INTO model_runs (run_type, status) VALUES (%s, 'running') RETURNING id", (run_type,))
         return cur.fetchone()["id"]
 
 
 def complete_model_run(run_id: int, **kwargs):
-    """
-    Mark a model run as completed.
-    kwargs: properties_trained, properties_scored, r2_score
-    """
     fields = ", ".join(f"{k} = %({k})s" for k in kwargs)
-    sql = f"""
-        UPDATE model_runs SET
-            status = 'completed',
-            completed_at = NOW(),
-            {fields}
-        WHERE id = %(run_id)s
-    """
+    sql = f"UPDATE model_runs SET status='completed', completed_at=NOW(), {fields} WHERE id=%(run_id)s"
     with get_cursor() as cur:
         cur.execute(sql, {"run_id": run_id, **kwargs})
 
 
 def fail_model_run(run_id: int, error: str):
-    """Mark a model run as failed with an error message."""
     with get_cursor() as cur:
-        cur.execute(
-            """UPDATE model_runs SET
-               status = 'failed', completed_at = NOW(), error_message = %s
-               WHERE id = %s""",
-            (error, run_id)
-        )
-
-
-def fetch_all_existing_mls_ids() -> set[str]:
-    """Retrieve all MLS IDs currently in the database to allow the scraper to skip duplicates."""
-    query = "SELECT mls_id FROM properties WHERE mls_id IS NOT NULL"
-    with get_cursor() as cur:
-        cur.execute(query)
-        return {row["mls_id"] for row in cur.fetchall()}
+        cur.execute("UPDATE model_runs SET status='failed', completed_at=NOW(), error_message=%s WHERE id=%s", (error, run_id))
 
 
 def fetch_all_unique_zips() -> list[str]:
-    """Retrieve all unique ZIP codes from the properties table."""
-    query = "SELECT DISTINCT zip FROM properties WHERE zip IS NOT NULL AND zip != ''"
     with get_cursor() as cur:
-        cur.execute(query)
+        cur.execute("SELECT DISTINCT zip FROM properties WHERE zip IS NOT NULL AND zip != ''")
         return [row["zip"] for row in cur.fetchall()]
 
 
-def fetch_model_status() -> dict:
-    """Return the latest train and score run metadata."""
-    with get_cursor() as cur:
+def get_all_trained_models() -> list[dict]:
+    """Returns all completed training runs, newest first."""
+    with get_cursor(commit=False) as cur:
         cur.execute("""
-            SELECT DISTINCT ON (run_type)
-                run_type, status, started_at, completed_at,
-                properties_trained, properties_scored, r2_score, error_message
+            SELECT id, status, started_at, completed_at, properties_trained,
+                   r2_score, model_path, training_context, is_active, error_message
             FROM model_runs
-            ORDER BY run_type, started_at DESC
+            WHERE run_type = 'train' AND status = 'completed'
+            ORDER BY started_at DESC
         """)
-        rows = {r["run_type"]: dict(r) for r in cur.fetchall()}
+        return [dict(row) for row in cur.fetchall()]
 
+
+def get_active_model() -> dict | None:
+    """Returns the model currently flagged as active for scoring."""
+    with get_cursor(commit=False) as cur:
+        cur.execute("""
+            SELECT id, model_path, training_context, r2_score, properties_trained, started_at
+            FROM model_runs
+            WHERE run_type = 'train' AND is_active = TRUE
+            LIMIT 1
+        """)
+        row = cur.fetchone()
+        return dict(row) if row else None
+
+
+def set_active_model(run_id: int):
+    """Deactivates all models then activates the specified one."""
+    with get_cursor() as cur:
+        cur.execute("UPDATE model_runs SET is_active = FALSE WHERE run_type = 'train'")
+        cur.execute("UPDATE model_runs SET is_active = TRUE WHERE id = %s", (run_id,))
+
+
+def fetch_model_status() -> dict:
+    with get_cursor() as cur:
+        cur.execute("SELECT DISTINCT ON (run_type) * FROM model_runs ORDER BY run_type, started_at DESC")
+        rows = {r["run_type"]: dict(r) for r in cur.fetchall()}
         cur.execute("SELECT COUNT(*) as cnt FROM properties WHERE listing_type = 'for_sale'")
         rows["for_sale_count"] = cur.fetchone()["cnt"]
-
         cur.execute("SELECT COUNT(*) as cnt FROM properties WHERE listing_type = 'sold'")
         rows["sold_count"] = cur.fetchone()["cnt"]
-
-        cur.execute("""
-            SELECT COUNT(*) as cnt FROM properties
-            WHERE listing_type = 'for_sale' AND opportunity_result IS NULL
-        """)
-        rows["unscored_count"] = cur.fetchone()["cnt"]
-
-    return rows
+        return rows
