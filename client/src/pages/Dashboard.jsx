@@ -104,8 +104,8 @@ export default function Dashboard() {
 
   return (
     <div className="flex flex-col h-full w-full overflow-hidden bg-plt-bg text-plt-primary">
-      {/* Tactical Filter Bar */}
-      <div className="bg-plt-panel border-b border-plt-border px-4 py-3 flex flex-col gap-4 flex-shrink-0 z-10 shadow-sm">
+      {/* Tactical Filter Bar — glassmorphism */}
+      <div className="bg-white/90 backdrop-blur-sm border-b border-plt-border px-4 py-3 flex flex-col gap-4 flex-shrink-0 z-10 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-4">
           {/* Main Filters */}
           <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
@@ -149,8 +149,8 @@ export default function Dashboard() {
                 Min. Opportunity
               </label>
               <div className="relative">
-                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-plt-muted text-[10px] font-mono">$</span>
-                <input type="number" name="min_roi" value={filters.min_roi} onChange={handleChange} placeholder="Any" className="bg-plt-bg border border-plt-border text-plt-primary rounded h-8 pl-5 pr-2 text-[11px] font-mono focus:border-plt-accent outline-none w-28 hover:bg-plt-panel transition-colors" />
+                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-plt-muted text-[10px] font-sans font-bold">$</span>
+                <input type="number" name="min_roi" value={filters.min_roi} onChange={handleChange} placeholder="Any" className="bg-plt-bg border border-plt-border text-plt-primary rounded h-8 pl-5 pr-2 text-[11px] font-sans font-bold focus:border-plt-accent outline-none w-28 hover:bg-plt-panel transition-colors" />
               </div>
             </div>
 
@@ -206,7 +206,7 @@ export default function Dashboard() {
         </div>
 
         {/* Property detail sidebar — overlays map on mobile, slides in from right on md+ */}
-        <aside className={`${selectedProp ? 'w-full md:w-[420px]' : 'w-0'} absolute inset-0 md:relative md:inset-auto bg-plt-panel md:border-l border-plt-border flex flex-col transition-all duration-300 overflow-hidden shadow-2xl z-30`}>
+        <aside className={`${selectedProp ? 'w-full md:w-[420px]' : 'w-0'} absolute inset-0 md:relative md:inset-auto bg-plt-panel md:border-l border-plt-border flex flex-col transition-all duration-300 overflow-hidden shadow-2xl ring-1 ring-black/5 z-30`}>
           {selectedProp && (() => {
             const p = selectedProp;
             const cityDisplay = p.city ? p.city.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : '';
@@ -229,7 +229,10 @@ export default function Dashboard() {
                   <div className="flex justify-between items-start mb-3">
                     <div>
                       <div className="flex items-center gap-2 mb-1">
-                        <div className="text-[10px] text-plt-accent font-semibold tracking-wider">Property Selected</div>
+                        <div className="flex items-center gap-1.5 px-2 py-0.5 bg-plt-accent/10 rounded-full w-fit">
+                          <div className="w-1.5 h-1.5 rounded-full bg-plt-accent" />
+                          <span className="text-[9px] font-black uppercase tracking-widest text-plt-accent">Property Selected</span>
+                        </div>
                         <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${p.listing_type === 'sold' ? 'bg-plt-muted/20 text-plt-muted' : 'bg-plt-success/15 text-plt-success border border-plt-success/30'}`}>
                           {p.listing_type === 'sold' ? 'Sold' : 'For Sale'}
                         </span>
@@ -237,7 +240,7 @@ export default function Dashboard() {
                       <h3 className="text-sm font-bold leading-tight">{p.address}</h3>
                       <p className="text-xs text-plt-muted mt-0.5">{cityDisplay}, FL {p.zip}</p>
                     </div>
-                    <button onClick={() => handleSelectProperty(null)} className="p-2 hover:bg-plt-danger/10 text-plt-muted hover:text-plt-danger transition-all rounded flex-shrink-0">
+                    <button onClick={() => handleSelectProperty(null)} className="p-2 hover:bg-plt-danger/10 text-plt-muted hover:text-plt-danger transition-all rounded flex-shrink-0 active:scale-[0.98]">
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                     </button>
                   </div>
@@ -245,11 +248,11 @@ export default function Dashboard() {
                   {/* Property info grid */}
                   <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs mb-4 py-3 border-y border-plt-border/50">
                     <span className="text-plt-muted">Year Built</span>
-                    <span className="text-right font-mono text-plt-primary">{p.year_built || '—'}{age ? <span className="text-plt-muted ml-1">({age} yrs)</span> : ''}</span>
+                    <span className="text-right font-sans font-bold text-plt-primary">{p.year_built || '—'}{age ? <span className="text-plt-muted ml-1">({age} yrs)</span> : ''}</span>
                     <span className="text-plt-muted">Size</span>
-                    <span className="text-right font-mono text-plt-primary">{p.sqft ? p.sqft.toLocaleString() + ' sqft' : '—'}</span>
+                    <span className="text-right font-sans font-bold text-plt-primary">{p.sqft ? p.sqft.toLocaleString() + ' sqft' : '—'}</span>
                     <span className="text-plt-muted">Lot</span>
-                    <span className="text-right font-mono text-plt-primary">{p.lot_sqft ? p.lot_sqft.toLocaleString() + ' sqft' : '—'}</span>
+                    <span className="text-right font-sans font-bold text-plt-primary">{p.lot_sqft ? p.lot_sqft.toLocaleString() + ' sqft' : '—'}</span>
                     <span className="text-plt-muted">Type</span>
                     <span className="text-right text-plt-primary">{p.property_type || 'Single Family'}</span>
                   </div>
@@ -259,35 +262,35 @@ export default function Dashboard() {
                     <div className="text-[9px] font-semibold uppercase tracking-wider text-plt-muted mb-2">Financials</div>
                     <div className="flex justify-between">
                       <span className="text-plt-muted">Asking Price</span>
-                      <span className="font-mono text-plt-primary">{p.list_price ? '$' + p.list_price.toLocaleString() : '—'}</span>
+                      <span className="font-sans font-bold text-plt-primary">{p.list_price ? '$' + p.list_price.toLocaleString() : '—'}</span>
                     </div>
                     {buildCost && (
                       <div className="flex justify-between">
                         <span className="text-plt-muted">Est. Build Cost <span className="text-[9px] opacity-60">({p.sqft?.toLocaleString()} × ${costPerSqft}/sqft)</span></span>
-                        <span className="font-mono text-plt-primary">${buildCost.toLocaleString()}</span>
+                        <span className="font-sans font-bold text-plt-primary">${buildCost.toLocaleString()}</span>
                       </div>
                     )}
                     {totalCost && (
                       <div className="flex justify-between border-t border-plt-border/40 pt-1.5">
                         <span className="text-plt-muted font-semibold">Total Cost</span>
-                        <span className="font-mono font-semibold text-plt-primary">${totalCost.toLocaleString()}</span>
+                        <span className="font-sans font-bold font-semibold text-plt-primary">${totalCost.toLocaleString()}</span>
                       </div>
                     )}
                     <div className="flex justify-between">
                       <span className="text-plt-muted">Predicted Value</span>
-                      <span className="font-mono text-plt-primary">{p.predicted_rebuild_value ? '$' + p.predicted_rebuild_value.toLocaleString() : '—'}</span>
+                      <span className="font-sans font-bold text-plt-primary">{p.predicted_rebuild_value ? '$' + p.predicted_rebuild_value.toLocaleString() : '—'}</span>
                     </div>
                     <div className="flex justify-between border-t border-plt-border/40 pt-1.5">
                       <span className="text-plt-muted font-semibold">Est. Profit</span>
-                      <span className={`font-mono font-bold text-sm ${profitColor}`}>
+                      <span className={`font-sans font-bold font-bold text-sm ${profitColor}`}>
                         {profit != null ? `${profitSign}$${Math.abs(profit).toLocaleString()}` : '—'}
                       </span>
                     </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-2">
-                    <a href={zillowListingUrl} target="_blank" rel="noopener noreferrer" className="bg-plt-accent text-white text-xs font-semibold py-2.5 px-4 rounded text-center hover:brightness-110 transition-all">Find on Zillow</a>
-                    <a href={zillowAreaUrl} target="_blank" rel="noopener noreferrer" className="border border-plt-accent text-plt-accent text-xs font-semibold py-2.5 px-4 rounded text-center hover:bg-plt-accent/5 transition-all">Browse Area</a>
+                    <a href={zillowListingUrl} target="_blank" rel="noopener noreferrer" className="bg-plt-accent text-white text-xs font-semibold py-2.5 px-4 rounded-lg text-center hover:brightness-110 transition-all active:scale-[0.98]">Find on Zillow</a>
+                    <a href={zillowAreaUrl} target="_blank" rel="noopener noreferrer" className="border border-plt-accent text-plt-accent text-xs font-semibold py-2.5 px-4 rounded-lg text-center hover:bg-plt-accent/5 transition-all active:scale-[0.98]">Browse Area</a>
                   </div>
                 </div>
 
@@ -336,9 +339,9 @@ export default function Dashboard() {
                             {pricePerSqft && <span className="text-[10px] text-plt-muted ml-1.5">(${pricePerSqft}/ft²)</span>}
                           </div>
                           <span className="text-plt-muted">Proximity</span>
-                          <span className="text-right font-mono text-plt-primary">{distanceDisplay}</span>
+                          <span className="text-right font-sans font-bold text-plt-primary">{distanceDisplay}</span>
                           <span className="text-plt-muted">Details</span>
-                          <span className="text-right font-mono text-[11px] text-plt-primary">{comp.sqft?.toLocaleString()} sqft · {comp.year_built}</span>
+                          <span className="text-right font-sans font-bold text-[11px] text-plt-primary">{comp.sqft?.toLocaleString()} sqft · {comp.year_built}</span>
                         </div>
                       </div>
                     );

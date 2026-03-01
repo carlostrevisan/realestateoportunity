@@ -311,14 +311,14 @@ export default function OpportunityMap({ filters, roiFilters, onSelectProperty, 
   return (
     <div className="w-full h-full relative bg-plt-bg overflow-hidden flex flex-col">
       <div className="absolute top-4 left-4 right-4 z-[1000] flex items-center justify-between pointer-events-none">
-        <div className="flex gap-3 pointer-events-auto">
-          <div className="bg-white border border-plt-border px-4 py-2 rounded shadow-sm text-[10px] font-bold uppercase tracking-widest flex items-center gap-2">
+        <div className="flex gap-2 pointer-events-auto">
+          <div className="bg-white/90 backdrop-blur-md border border-plt-border/60 px-4 py-2 rounded-lg shadow-md text-[10px] font-bold uppercase tracking-widest flex items-center gap-2">
             <div className={`w-2 h-2 rounded-full ${loading ? 'bg-plt-accent animate-pulse' : 'bg-plt-accent'}`} />
-            <span className="text-plt-text-primary">
+            <span className="text-plt-primary">
               {loading ? "Syncing..." : (() => {
                 const total = geojson?.meta?.total || 0;
                 const showing = visibleCount;
-                return total > showing ? `${total.toLocaleString()} found (Showing ${showing.toLocaleString()})` : `${showing.toLocaleString()} Properties`;
+                return total > showing ? `${total.toLocaleString()} found (${showing.toLocaleString()} visible)` : `${showing.toLocaleString()} Properties`;
               })()}
             </span>
           </div>
@@ -327,14 +327,14 @@ export default function OpportunityMap({ filters, roiFilters, onSelectProperty, 
               if (onSelectProperty) onSelectProperty(null);
               mapInstance.current?.setView([27.7663, -81.6868], 7);
             }}
-            className="bg-white border border-plt-border px-4 py-2 rounded shadow-sm text-[10px] font-bold uppercase tracking-widest text-plt-text-secondary hover:text-plt-accent transition-all"
+            className="bg-white/90 backdrop-blur-md border border-plt-border/60 px-4 py-2 rounded-lg shadow-md text-[10px] font-bold uppercase tracking-widest text-plt-secondary hover:text-plt-accent transition-all active:scale-[0.98]"
           >
             Reset Orientation
           </button>
         </div>
 
         {error && (
-          <div className="bg-white border border-plt-danger text-plt-danger px-4 py-2 rounded shadow-sm text-[10px] font-bold uppercase tracking-widest pointer-events-auto">
+          <div className="bg-white/90 backdrop-blur-md border border-plt-danger/60 text-plt-danger px-4 py-2 rounded-lg shadow-md text-[10px] font-bold uppercase tracking-widest pointer-events-auto">
             Telemetry Error: {error}
           </div>
         )}
@@ -343,8 +343,8 @@ export default function OpportunityMap({ filters, roiFilters, onSelectProperty, 
       <div ref={mapRef} className="flex-1 w-full h-full" style={{ zIndex: 1, backgroundColor: '#f1f5f9' }} />
 
       <div className="absolute bottom-6 right-4 z-[1000] pointer-events-none">
-        <div className="bg-white border border-plt-border rounded shadow-sm px-4 py-3 space-y-1.5 pointer-events-auto">
-          <div className="text-[9px] font-black uppercase tracking-[0.2em] text-plt-text-muted mb-2 border-b border-plt-border pb-1">Map Key</div>
+        <div className="bg-white/90 backdrop-blur-md border border-plt-border/60 rounded-lg shadow-md px-4 py-3 space-y-1.5 pointer-events-auto">
+          <div className="text-[9px] font-black uppercase tracking-[0.2em] text-plt-muted mb-2 border-b border-plt-border pb-1.5">Map Key</div>
           {[
             { color: "#10b981", label: "High Yield" },
             { color: "#f59e0b", label: "Mid Yield" },
@@ -353,9 +353,9 @@ export default function OpportunityMap({ filters, roiFilters, onSelectProperty, 
             { color: "#06b6d4", label: "Sold New Build" },
             { color: "#8b5cf6", label: "Older Comp" },
           ].map(({ color, label }) => (
-            <div key={label} className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
-              <span className="text-[9px] font-bold uppercase tracking-wider text-plt-text-secondary">{label}</span>
+            <div key={label} className="flex items-center gap-2.5">
+              <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
+              <span className="text-[9px] font-bold uppercase tracking-wider text-plt-secondary">{label}</span>
             </div>
           ))}
         </div>

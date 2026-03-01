@@ -15,7 +15,7 @@ export default function App() {
     <BrowserRouter>
       <div className="h-screen w-screen bg-plt-bg text-plt-primary flex flex-col overflow-hidden selection:bg-plt-accent selection:text-white">
         {/* Tactical Global Nav */}
-        <nav className="bg-plt-panel border-b border-plt-border px-6 flex items-center h-12 flex-shrink-0 z-[2000]">
+        <nav className="bg-white/90 backdrop-blur-md border-b border-plt-border px-6 flex items-center h-12 flex-shrink-0 z-[2000]">
           <div className="flex items-center gap-2 mr-4 md:mr-10 flex-shrink-0">
             <div className="w-2.5 h-2.5 bg-plt-accent rounded-sm status-active shadow-[0_0_10px_var(--plt-accent)]" />
             <span className="font-semibold text-sm tracking-tight text-plt-primary whitespace-nowrap">
