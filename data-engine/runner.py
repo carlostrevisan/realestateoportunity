@@ -211,11 +211,13 @@ def run_scrape():
 def run_train():
     body = request.get_json(silent=True) or {}
     cmd = [sys.executable, "ml_model.py", "--train"]
-    if "n_estimators" in body:   cmd += ["--n-estimators",   str(body["n_estimators"])]
-    if "max_depth" in body:      cmd += ["--max-depth",      str(body["max_depth"])]
-    if "lr" in body:             cmd += ["--lr",             str(body["lr"])]
-    if "min_year_built" in body: cmd += ["--min-year-built", str(body["min_year_built"])]
-    if "test_split" in body:     cmd += ["--test-split",     str(body["test_split"])]
+    if "algorithm"     in body: cmd += ["--algorithm",     str(body["algorithm"])]
+    if "n_estimators"  in body: cmd += ["--n-estimators",  str(body["n_estimators"])]
+    if "max_depth"     in body: cmd += ["--max-depth",     str(body["max_depth"])]
+    if "lr"            in body: cmd += ["--lr",            str(body["lr"])]
+    if "alpha"         in body: cmd += ["--alpha",         str(body["alpha"])]
+    if "min_year_built"in body: cmd += ["--min-year-built",str(body["min_year_built"])]
+    if "test_split"    in body: cmd += ["--test-split",    str(body["test_split"])]
     job_id = _make_job("train")
     _spawn(job_id, cmd)
     return jsonify({"job_id": job_id, "status": "started"})

@@ -90,13 +90,16 @@ export function StatusBadge({ job, isActive, onClick }) {
   return (
     <button
       onClick={onClick}
-      className={`flex items-center gap-2.5 px-3 py-2 rounded-xl border-2 border-l-4 transition-all duration-150 active:scale-[0.98] whitespace-nowrap font-sans ${
+      className={`flex items-center gap-2.5 px-3 py-2 rounded-xl transition-all duration-150 active:scale-[0.98] whitespace-nowrap font-sans ${
         isActive
-          ? "bg-plt-accent border-plt-accent text-white shadow-lg shadow-plt-accent/20"
-          : `bg-white ${leftBorder} border-plt-border text-plt-secondary hover:border-plt-accent/50 hover:shadow-sm`
+          ? "bg-plt-accent border-2 border-plt-accent text-white shadow-lg shadow-plt-accent/20"
+          : `bg-white border-2 border-l-4 ${leftBorder} border-plt-border text-plt-secondary hover:border-plt-accent/50 hover:shadow-sm`
       }`}
     >
-      <StatusDot status={job.status} />
+      {isActive
+        ? <span className="inline-block w-2 h-2 rounded-full flex-shrink-0 bg-white/80" />
+        : <StatusDot status={job.status} />
+      }
       <div className="flex flex-col items-start leading-tight">
         <span className={`text-[11px] font-semibold ${isActive ? "text-white" : "text-plt-primary"}`}>
           {job.type}

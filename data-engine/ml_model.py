@@ -4,6 +4,7 @@ ml_model.py — XGBoost training and scoring logic + Weighted Scoring + Geospati
 
 import argparse
 import json
+import joblib
 import logging
 import os
 from datetime import datetime
@@ -113,7 +114,7 @@ def sanity_check_data(df, stage="training"):
     logger.info("[PASS] Sanity check passed.")
     return True, ""
 
-def train_model(n_estimators=1000, max_depth=6, learning_rate=0.05, min_year_built=2015, test_split=0.2):
+def train_model(n_estimators=1000, max_depth=6, learning_rate=0.05, min_year_built=2015, test_split=0.2, algorithm="xgboost", alpha=1.0):
     run_id = db.start_model_run("train")
     logger.info("[EXEC] Starting model training...")
 
@@ -159,18 +160,37 @@ def train_model(n_estimators=1000, max_depth=6, learning_rate=0.05, min_year_bui
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_split, random_state=42)
 
         # 5. Train
-        model = xgb.XGBRegressor(
-            objective='reg:squarederror',
-            n_estimators=n_estimators,
-            learning_rate=learning_rate,
-            max_depth=max_depth,
-            subsample=0.8,
-            colsample_bytree=0.8,
-            random_state=42
-        )
+        if algorithm == "xgboost":
+            model = xgb.XGBRegressor(
+                objective='reg:squarederror',
+                n_estimators=n_estimators,
+                learning_rate=learning_rate,
+                max_depth=max_depth,
+                subsample=0.8,
+                colsample_bytree=0.8,
+                random_state=42
+            )
+        elif algorithm == "random_forest":
+            from sklearn.ensemble import RandomForestRegressor
+            model = RandomForestRegressor(n_estimators=n_estimators, max_depth=max_depth, random_state=42, n_jobs=-1)
+        elif algorithm == "ridge":
+            from sklearn.linear_model import Ridge
+            model = Ridge(alpha=alpha)
+        elif algorithm == "lightgbm":
+            import lightgbm as lgb
+            model = lgb.LGBMRegressor(n_estimators=n_estimators, max_depth=max_depth, learning_rate=learning_rate, random_state=42, verbose=-1)
+        else:
+            logger.error(f"[FAIL] Unknown algorithm: {algorithm}")
+            db.fail_model_run(run_id, f"Unknown algorithm: {algorithm}")
+            return
+
         model.fit(X_train, y_train)
 
-        raw_imp = model.feature_importances_
+        if algorithm == "ridge":
+            coef = np.abs(model.coef_)
+            raw_imp = coef / (coef.sum() or 1.0)
+        else:
+            raw_imp = model.feature_importances_
         feature_importances = {feat: round(float(imp), 4) for feat, imp in zip(FEATURE_COLS, raw_imp)}
 
         preds = model.predict(X_test)
@@ -179,10 +199,15 @@ def train_model(n_estimators=1000, max_depth=6, learning_rate=0.05, min_year_bui
         # Save model
         if not os.path.exists("models"): os.makedirs("models")
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        model_path = f"models/rebuild_{run_id}_{timestamp}.json"
-        model.save_model(model_path)
+        if algorithm == "xgboost":
+            model_path = f"models/rebuild_{run_id}_{timestamp}.json"
+            model.save_model(model_path)
+        else:
+            model_path = f"models/rebuild_{run_id}_{timestamp}.pkl"
+            joblib.dump(model, model_path)
 
         context = {
+            "algorithm": algorithm,
             "zip_codes": sorted(df['zip'].dropna().unique().tolist()),
             "year_built_min": min_year_built,
             "feature_importances": feature_importances,
@@ -190,6 +215,7 @@ def train_model(n_estimators=1000, max_depth=6, learning_rate=0.05, min_year_bui
             "n_estimators": n_estimators,
             "max_depth": max_depth,
             "learning_rate": learning_rate,
+            "alpha": alpha,
             "train_rows": len(X_train),
             "test_rows": len(X_test)
         }
@@ -244,17 +270,17 @@ def score_properties():
         # Compatibility: Provide the old feature name as well in case an older model is active
         df['avg_new_build_price_sqft_1mi'] = df['avg_new_build_price_sqft_05mi']
 
-        model = xgb.XGBRegressor()
-        model.load_model(active["model_path"])
-
-        # Detect which feature name the loaded model expects
-        try:
-            expected_features = model.get_booster().feature_names
-            if expected_features:
-                X = df[expected_features].copy()
-            else:
+        algorithm = context.get("algorithm", "xgboost")
+        if algorithm == "xgboost":
+            model = xgb.XGBRegressor()
+            model.load_model(active["model_path"])
+            try:
+                expected_features = model.get_booster().feature_names
+                X = df[expected_features].copy() if expected_features else df[FEATURE_COLS].copy()
+            except:
                 X = df[FEATURE_COLS].copy()
-        except:
+        else:
+            model = joblib.load(active["model_path"])
             X = df[FEATURE_COLS].copy()
         
         for col in X.columns:
@@ -366,15 +392,25 @@ if __name__ == "__main__":
     parser.add_argument("--score", action="store_true")
     parser.add_argument("--score-weighted", action="store_true")
     parser.add_argument("--weights", type=str)
+    parser.add_argument("--algorithm", type=str, default="xgboost")
     parser.add_argument("--n-estimators", type=int, default=1000)
     parser.add_argument("--max-depth", type=int, default=6)
     parser.add_argument("--lr", type=float, default=0.05)
+    parser.add_argument("--alpha", type=float, default=1.0)
     parser.add_argument("--min-year-built", type=int, default=2015)
     parser.add_argument("--test-split", type=float, default=0.2)
     args = parser.parse_args()
 
     if args.train:
-        train_model(n_estimators=args.n_estimators, max_depth=args.max_depth, learning_rate=args.lr, min_year_built=args.min_year_built, test_split=args.test_split)
+        train_model(
+            n_estimators=args.n_estimators,
+            max_depth=args.max_depth,
+            learning_rate=args.lr,
+            min_year_built=args.min_year_built,
+            test_split=args.test_split,
+            algorithm=args.algorithm,
+            alpha=args.alpha,
+        )
     if args.score:
         score_properties()
     if args.score_weighted:

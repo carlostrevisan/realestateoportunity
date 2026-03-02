@@ -167,6 +167,16 @@ export default function Dashboard() {
 
           {/* ROI Toggles & Actions */}
           <div className="flex items-center gap-6">
+            {hasActiveFilters && (
+              <button
+                onClick={clearFilters}
+                className="text-[10px] font-bold uppercase tracking-widest text-plt-muted hover:text-plt-danger transition-colors flex items-center gap-1.5 px-2 py-1 rounded hover:bg-plt-danger/5"
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
+                Reset
+              </button>
+            )}
+
             <div className="flex items-center gap-4 bg-plt-bg/50 px-3 py-1.5 rounded-md border border-plt-border/50">
               {['green', 'yellow', 'red', 'gray'].map(color => (
                 <label key={color} className="flex items-center gap-2 cursor-pointer group select-none">
@@ -178,16 +188,6 @@ export default function Dashboard() {
                 </label>
               ))}
             </div>
-
-            {hasActiveFilters && (
-              <button 
-                onClick={clearFilters}
-                className="text-[10px] font-bold uppercase tracking-widest text-plt-muted hover:text-plt-danger transition-colors flex items-center gap-1.5 px-2 py-1 rounded hover:bg-plt-danger/5"
-              >
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
-                Reset
-              </button>
-            )}
           </div>
         </div>
       </div>

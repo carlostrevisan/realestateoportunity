@@ -7,6 +7,7 @@ python-dotenv==1.0.0
 requests==2.32.5
 xgboost==2.0.3
 scikit-learn==1.4.0
+lightgbm==4.3.0
 numpy==1.26.3
 flask==3.0.0
 tenacity==9.1.4

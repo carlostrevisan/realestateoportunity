@@ -40,7 +40,7 @@ export default function Help() {
           <div className="bg-plt-panel p-5 border border-plt-border rounded-lg shadow-sm">
             <div className="text-plt-accent font-sans font-bold text-xs mb-3 font-bold uppercase tracking-tighter">Phase 02 — Intelligence</div>
             <p className="text-xs leading-relaxed text-plt-text-secondary">
-              An <strong>XGBoost ML Model</strong> analyzes thousands of recent sales to predict a brand-new home's sale price. It relies heavily on a <strong>0.5-mile geospatial radius</strong> to evaluate hyper-local price-per-square-foot dynamics.
+              A configurable <strong>ML Model Engine</strong> analyzes thousands of recent sales to predict a brand-new home's sale price. Choose from XGBoost, Random Forest, Ridge, or LightGBM — each tuned against a <strong>0.5-mile geospatial radius</strong> to evaluate hyper-local price-per-square-foot dynamics.
             </p>
           </div>
           <div className="bg-plt-panel p-5 border border-plt-border rounded-lg shadow-sm">
@@ -55,7 +55,62 @@ export default function Help() {
       <section className="mb-12">
         <h2 className="text-xl font-semibold text-plt-primary mb-4 flex items-center gap-2">
           <span className="w-1.5 h-6 bg-plt-accent inline-block rounded-full" />
-          The ML Model (XGBoost)
+          Algorithm Selection
+        </h2>
+        <p className="text-xs text-plt-secondary mb-5 leading-relaxed">
+          The Model Engine tab lets you choose the training algorithm before each run. Each model has different trade-offs in speed, accuracy, and interpretability. The trained model list shows which algorithm produced each result so you can compare R² scores across methods.
+        </p>
+        <div className="grid md:grid-cols-2 gap-3 mb-10">
+          <div className="p-4 border-2 border-plt-accent/30 bg-plt-accent/[0.03] rounded-xl shadow-sm">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[10px] font-black uppercase tracking-widest text-plt-accent font-sans">XGBoost</span>
+              <span className="text-[9px] font-bold px-2 py-0.5 bg-plt-accent text-white rounded tracking-wider">Default</span>
+            </div>
+            <p className="text-xs text-plt-secondary leading-relaxed mb-3">
+              Extreme Gradient Boosting. Sequential ensemble of shallow decision trees, each correcting the errors of the previous. Best all-around choice for this dataset — handles non-linear price relationships, missing values, and feature interactions without preprocessing.
+            </p>
+            <div className="text-[9px] font-bold uppercase tracking-widest text-plt-muted font-sans">Params: n_estimators · max_depth · learning rate · min year built · test split</div>
+          </div>
+
+          <div className="p-4 border border-plt-border bg-plt-panel rounded-xl shadow-sm">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[10px] font-black uppercase tracking-widest text-plt-primary font-sans">Random Forest</span>
+              <span className="text-[9px] font-bold px-2 py-0.5 bg-slate-100 text-slate-500 border border-slate-200 rounded tracking-wider">Robust</span>
+            </div>
+            <p className="text-xs text-plt-secondary leading-relaxed mb-3">
+              Parallel ensemble of deep, independently-grown decision trees. More resistant to overfitting when sold history is limited. Scores are stable across retraining runs, making it a reliable baseline when data is sparse or noisy.
+            </p>
+            <div className="text-[9px] font-bold uppercase tracking-widest text-plt-muted font-sans">Params: n_estimators · max_depth · min year built · test split</div>
+          </div>
+
+          <div className="p-4 border border-plt-border bg-plt-panel rounded-xl shadow-sm">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[10px] font-black uppercase tracking-widest text-plt-primary font-sans">Ridge Regression</span>
+              <span className="text-[9px] font-bold px-2 py-0.5 bg-slate-100 text-slate-500 border border-slate-200 rounded tracking-wider">Baseline</span>
+            </div>
+            <p className="text-xs text-plt-secondary leading-relaxed mb-3">
+              Linear model with L2 regularization, penalizing large coefficients to prevent overfitting. Very fast to train and fully interpretable — each feature weight is a direct dollar contribution. Use it as a sanity check against the tree-based models.
+            </p>
+            <div className="text-[9px] font-bold uppercase tracking-widest text-plt-muted font-sans">Params: alpha (regularization strength) · min year built · test split</div>
+          </div>
+
+          <div className="p-4 border border-plt-border bg-plt-panel rounded-xl shadow-sm">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[10px] font-black uppercase tracking-widest text-plt-primary font-sans">LightGBM</span>
+              <span className="text-[9px] font-bold px-2 py-0.5 bg-slate-100 text-slate-500 border border-slate-200 rounded tracking-wider">Fast</span>
+            </div>
+            <p className="text-xs text-plt-secondary leading-relaxed mb-3">
+              Gradient boosting using a leaf-wise (best-first) tree growth strategy instead of XGBoost's level-wise approach. Significantly faster on large datasets and handles high-cardinality categorical features (like ZIP codes) natively. Best choice when retraining frequently.
+            </p>
+            <div className="text-[9px] font-bold uppercase tracking-widest text-plt-muted font-sans">Params: n_estimators · max_depth · learning rate · min year built · test split</div>
+          </div>
+        </div>
+      </section>
+
+      <section className="mb-12">
+        <h2 className="text-xl font-semibold text-plt-primary mb-4 flex items-center gap-2">
+          <span className="w-1.5 h-6 bg-plt-accent inline-block rounded-full" />
+          XGBoost — Default Model
         </h2>
         <div className="bg-plt-panel border border-plt-border rounded-lg overflow-hidden shadow-sm">
           <div className="p-5 border-b border-plt-border">
