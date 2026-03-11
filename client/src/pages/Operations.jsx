@@ -1,5 +1,11 @@
 import React, { useState, useEffect, useCallback, useRef, memo } from "react";
 import { Label, Val, StatusDot, Btn, StatusBadge } from "../components/UI.jsx";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Progress } from "@/components/ui/progress";
 
 const API = "";
 
@@ -52,7 +58,7 @@ function JobConsole({ selectedId, setSelectedId, jobs = [], onClear }) {
 
   return (
     <div className="flex flex-col h-full bg-white border border-plt-border overflow-hidden relative shadow-sm rounded-xl font-sans">
-      {/* Console Header — clean light */}
+      {/* Console Header */}
       <div className="flex items-center justify-between px-5 py-3 border-b border-plt-border bg-white flex-shrink-0">
         <div className="flex items-center gap-3">
           <StatusDot status={selectedJob?.status || "idle"} />
@@ -151,68 +157,52 @@ function JobConsole({ selectedId, setSelectedId, jobs = [], onClear }) {
 }
 
 function ControlCard({ onJob }) {
-  const [tab, setTab] = useState("acquisition");
-
-  const tabs = [
-    { id: "acquisition", label: "Data Acquisition" },
-    { id: "model",       label: "Model Engine" },
-  ];
-
   return (
     <div className="flex flex-col h-full bg-white border border-plt-border overflow-hidden relative shadow-sm rounded-xl font-sans">
-      {/* Header */}
-      <div className="flex items-center justify-between px-5 py-3 border-b border-plt-border bg-white flex-shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="w-1.5 h-1.5 bg-plt-accent rounded-full" />
-          <div className="flex flex-col">
+      <Tabs defaultValue="acquisition" className="flex flex-col h-full">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-3 border-b border-plt-border bg-white flex-shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-1.5 h-1.5 bg-plt-accent rounded-full" />
             <span className="text-[9px] font-bold uppercase tracking-widest text-plt-muted">Controls</span>
-            <span className="text-sm font-bold text-plt-primary">
-              {tab === "acquisition" ? "Data Acquisition" : "Model Engine"}
-            </span>
           </div>
+          <TabsList className="bg-plt-bg border border-plt-border h-8">
+            <TabsTrigger value="acquisition" className="text-[10px] font-bold uppercase tracking-widest px-3 py-1">
+              Data Acquisition
+            </TabsTrigger>
+            <TabsTrigger value="model" className="text-[10px] font-bold uppercase tracking-widest px-3 py-1">
+              Model Engine
+            </TabsTrigger>
+          </TabsList>
         </div>
-        <div className="flex items-center gap-1 bg-plt-bg border border-plt-border rounded-lg p-0.5">
-          {tabs.map(t => (
-            <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
-              className={`px-3 py-1.5 rounded-md text-[11px] font-bold uppercase tracking-widest transition-all duration-150 active:scale-[0.98] ${
-                tab === t.id
-                  ? "bg-plt-accent text-white shadow-sm"
-                  : "text-plt-muted hover:text-plt-primary"
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
-      </div>
 
-      {/* Body */}
-      <div className="flex-1 overflow-y-auto p-5 custom-scrollbar">
-        {tab === "acquisition" ? (
-          <div className="space-y-5">
-            <IngestionControls onJob={onJob} />
-            <div className="border border-plt-danger/25 rounded-xl p-5 bg-plt-danger/[0.02] flex flex-col gap-3">
-              <div className="flex items-center gap-2.5">
-                <div className="w-1.5 h-1.5 bg-plt-danger rounded-full animate-pulse" />
-                <span className="text-sm font-semibold text-plt-danger">Hard Reset</span>
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto p-5 custom-scrollbar">
+          <TabsContent value="acquisition" className="mt-0">
+            <div className="space-y-5">
+              <IngestionControls onJob={onJob} />
+              <div className="border border-plt-danger/25 rounded-xl p-5 bg-plt-danger/[0.02] flex flex-col gap-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-1.5 h-1.5 bg-plt-danger rounded-full animate-pulse" />
+                  <span className="text-sm font-semibold text-plt-danger">Hard Reset</span>
+                </div>
+                <p className="text-xs text-plt-secondary leading-relaxed">
+                  Permanently clears all properties, ML models, and job history from the database.
+                </p>
+                <button
+                  onClick={() => window.confirm("This will permanently wipe all data. Continue?") && fetch(`${API}/api/scrape/reset`, { method: "POST" }).then(() => window.location.reload())}
+                  className="w-full text-sm font-semibold bg-white text-plt-danger border border-plt-danger/30 hover:bg-plt-danger hover:text-white py-2.5 rounded-lg transition-all active:scale-[0.98]"
+                >
+                  Wipe Database
+                </button>
               </div>
-              <p className="text-xs text-plt-secondary leading-relaxed">
-                Permanently clears all properties, ML models, and job history from the database.
-              </p>
-              <button
-                onClick={() => window.confirm("This will permanently wipe all data. Continue?") && fetch(`${API}/api/scrape/reset`, { method: "POST" }).then(() => window.location.reload())}
-                className="w-full text-sm font-semibold bg-white text-plt-danger border border-plt-danger/30 hover:bg-plt-danger hover:text-white py-2.5 rounded-lg transition-all active:scale-[0.98]"
-              >
-                Wipe Database
-              </button>
             </div>
-          </div>
-        ) : (
-          <IntelControls onJob={onJob} />
-        )}
-      </div>
+          </TabsContent>
+          <TabsContent value="model" className="mt-0">
+            <IntelControls onJob={onJob} />
+          </TabsContent>
+        </div>
+      </Tabs>
     </div>
   );
 }
@@ -224,10 +214,10 @@ const HUD = memo(({ mlStatus, scrapeStatus }) => {
   const r2 = mlStatus?.train?.r2_score;
 
   const stats = [
-    { label: "Sold History",  val: soldTotal.toLocaleString(),               green: soldTotal > 0 },
-    { label: "Active Listings", val: forSaleTotal.toLocaleString(),            green: forSaleTotal > 0 },
-    { label: "Pending Score",  val: unscored.toLocaleString(),                yellow: unscored > 0 },
-    { label: "R² Accuracy",   val: r2 ? parseFloat(r2).toFixed(4) : "—",     green: r2 > 0.8 },
+    { label: "Sold History",   val: soldTotal.toLocaleString(),            green: soldTotal > 0 },
+    { label: "Active Listings",val: forSaleTotal.toLocaleString(),          green: forSaleTotal > 0 },
+    { label: "Pending Score",  val: unscored.toLocaleString(),              yellow: unscored > 0 },
+    { label: "R² Accuracy",   val: r2 ? parseFloat(r2).toFixed(4) : "—",  green: r2 > 0.8 },
     { label: "System",        val: "Nominal" },
   ];
 
@@ -245,8 +235,7 @@ const HUD = memo(({ mlStatus, scrapeStatus }) => {
 
 // ── Modals ─────────────────────────────────────────────────────────────
 
-
-function WeightedScoringModal({ onClose, onJob }) {
+function WeightedScoringModal({ open, onClose, onJob }) {
   const DEFAULTS = { sqft: 35, zip: 25, avg_new_build_price_sqft_05mi: 30, lot_sqft: 5, year_built: 5, median_household_income: 0 };
   const [weights, setWeights] = useState(DEFAULTS);
   const [running, setRunning] = useState(false);
@@ -276,18 +265,13 @@ function WeightedScoringModal({ onClose, onJob }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 flex items-center justify-center p-4 font-sans" onClick={onClose}>
-      <div className="bg-white border border-plt-border rounded-2xl shadow-2xl w-full max-w-md flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-6 py-5 border-b border-plt-border rounded-t-2xl">
-          <div>
-            <h2 className="text-base font-bold text-plt-primary">Weighted Scoring</h2>
-            <p className="text-xs text-plt-muted mt-0.5">Manually bias factor weights before scoring</p>
-          </div>
-          <button onClick={onClose} className="text-plt-muted hover:text-plt-danger transition-colors p-2 rounded-full hover:bg-plt-danger/10 active:scale-[0.98]">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12"/></svg>
-          </button>
-        </div>
-        <div className="overflow-y-auto flex-1 px-6 py-6 space-y-5">
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-md font-sans">
+        <DialogHeader>
+          <DialogTitle>Weighted Scoring</DialogTitle>
+          <p className="text-xs text-plt-muted mt-0.5">Manually bias factor weights before scoring</p>
+        </DialogHeader>
+        <div className="overflow-y-auto max-h-[60vh] space-y-5">
           <div className={`p-3 rounded-lg text-center text-xs font-semibold border ${total === 100 ? "bg-plt-success/10 border-plt-success/20 text-plt-success" : "bg-plt-warning/10 border-plt-warning/20 text-plt-warning"}`}>
             Total: {total}%{total !== 100 && " — will be auto-normalized"}
           </div>
@@ -297,20 +281,25 @@ function WeightedScoringModal({ onClose, onJob }) {
                 {key.replace(/_/g, ' ')}
               </label>
               <div className="flex items-center gap-2">
-                <input type="number" value={val} onChange={e => update(key, e.target.value)} className="w-24 h-10 px-4 text-sm font-semibold text-right border border-plt-border rounded-lg focus:border-plt-accent outline-none" />
+                <Input
+                  type="number"
+                  value={val}
+                  onChange={e => update(key, e.target.value)}
+                  className="w-24 h-10 text-sm font-semibold text-right"
+                />
                 <span className="text-sm text-plt-muted">%</span>
               </div>
             </div>
           ))}
         </div>
-        <div className="flex gap-3 px-6 py-4 border-t border-plt-border bg-plt-bg/50 rounded-b-2xl">
+        <div className="flex gap-3 pt-2 border-t border-plt-border">
           <Btn onClick={submit} disabled={running || total === 0} variant="primary" className="flex-1">
             {running ? "Scoring..." : "Run Scoring"}
           </Btn>
           <Btn onClick={onClose} variant="ghost" className="w-28">Cancel</Btn>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -344,14 +333,14 @@ function IngestionControls({ onJob }) {
   const [start, setStart] = useState("2022-01");
   const lastMonth = new Date(); lastMonth.setMonth(lastMonth.getMonth() - 1);
   const [end, setEnd] = useState(`${lastMonth.getFullYear()}-${String(lastMonth.getMonth() + 1).padStart(2, '0')}`);
-  const [throttle, setThrottle] = useState(10);
+  const [throttle, setThrottle] = useState("10");
   const [forceRenew, setForceRenew] = useState(false);
   const [running, setRunning] = useState({});
 
   const trigger = async (type, params = {}) => {
     setRunning(p => ({ ...p, [type]: true }));
     const startTime = Date.now();
-    const body = { type, market, throttle, force_renew: forceRenew, all_zips: true, ...params };
+    const body = { type, market, throttle: parseInt(throttle), force_renew: forceRenew, all_zips: true, ...params };
     const res = await fetch(`${API}/api/scrape/trigger`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     const data = await res.json();
     if (data.job_id) onJob(data.job_id);
@@ -366,24 +355,39 @@ function IngestionControls({ onJob }) {
       <div className="grid grid-cols-2 gap-4">
         <div>
           <Label>Market</Label>
-          <select value={market} onChange={e => setMarket(e.target.value)} className="w-full h-10 px-3 text-sm font-medium border border-plt-border rounded-lg bg-white focus:border-plt-accent outline-none appearance-none cursor-pointer">
-            <option value="all">All Markets</option>
-            {MARKETS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
-          </select>
+          <Select value={market} onValueChange={setMarket}>
+            <SelectTrigger className="h-10 text-sm font-medium">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Markets</SelectItem>
+              {MARKETS.map(m => (
+                <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
         <div>
           <Label>Throttle</Label>
-          <select value={throttle} onChange={e => setThrottle(parseInt(e.target.value))} className="w-full h-10 px-3 text-sm font-medium border border-plt-border rounded-lg bg-white focus:border-plt-accent outline-none appearance-none cursor-pointer">
-            <option value="5">Fast (5s)</option>
-            <option value="10">Balanced (10s)</option>
-            <option value="30">Safe (30s)</option>
-          </select>
+          <Select value={throttle} onValueChange={setThrottle}>
+            <SelectTrigger className="h-10 text-sm font-medium">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="5">Fast (5s)</SelectItem>
+              <SelectItem value="10">Balanced (10s)</SelectItem>
+              <SelectItem value="30">Safe (30s)</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
       <div className="p-3.5 bg-slate-50 border border-plt-border rounded-xl">
         <label className="flex items-center gap-3 cursor-pointer group select-none">
-          <input type="checkbox" checked={forceRenew} onChange={e => setForceRenew(e.target.checked)} className="w-4 h-4 accent-plt-success rounded border-plt-border" />
+          <Checkbox
+            checked={forceRenew}
+            onCheckedChange={checked => setForceRenew(!!checked)}
+          />
           <div className="flex flex-col">
             <span className="text-sm font-semibold text-plt-primary group-hover:text-plt-accent transition-colors">Force re-scrape</span>
             <span className="text-xs text-plt-muted">Re-fetch properties already in the database</span>
@@ -398,8 +402,8 @@ function IngestionControls({ onJob }) {
       <div className="space-y-3 p-4 bg-slate-50 border border-plt-border rounded-xl">
         <Label>Sold history date range</Label>
         <div className="grid grid-cols-2 gap-3">
-          <input type="month" value={start} onChange={e => setStart(e.target.value)} className="w-full h-10 px-3 text-sm font-medium border border-plt-border rounded-lg" />
-          <input type="month" value={end} onChange={e => setEnd(e.target.value)} className="w-full h-10 px-3 text-sm font-medium border border-plt-border rounded-lg" />
+          <Input type="month" value={start} onChange={e => setStart(e.target.value)} className="h-10 text-sm font-medium" />
+          <Input type="month" value={end} onChange={e => setEnd(e.target.value)} className="h-10 text-sm font-medium" />
         </div>
         <Btn variant="success" disabled={running.sold} onClick={() => trigger("sold", { start, end })}>
           {running.sold ? "Syncing sold history..." : "Sync Sold History"}
@@ -563,11 +567,25 @@ function IntelControls({ onJob }) {
                       <div className="grid grid-cols-2 gap-3">
                         <div>
                           <Label>Name</Label>
-                          <input type="text" value={edit.name} onChange={e => setEditFields(p => ({ ...p, [m.id]: { ...p[m.id], name: e.target.value } }))} onBlur={() => patchModel(m.id)} placeholder="Untitled" className="w-full h-9 px-3 text-sm border border-plt-border rounded-lg bg-white focus:border-plt-accent outline-none" />
+                          <Input
+                            type="text"
+                            value={edit.name}
+                            onChange={e => setEditFields(p => ({ ...p, [m.id]: { ...p[m.id], name: e.target.value } }))}
+                            onBlur={() => patchModel(m.id)}
+                            placeholder="Untitled"
+                            className="h-9 text-sm"
+                          />
                         </div>
                         <div>
                           <Label>Notes</Label>
-                          <input type="text" value={edit.description} onChange={e => setEditFields(p => ({ ...p, [m.id]: { ...p[m.id], description: e.target.value } }))} onBlur={() => patchModel(m.id)} placeholder="Optional" className="w-full h-9 px-3 text-sm border border-plt-border rounded-lg bg-white focus:border-plt-accent outline-none" />
+                          <Input
+                            type="text"
+                            value={edit.description}
+                            onChange={e => setEditFields(p => ({ ...p, [m.id]: { ...p[m.id], description: e.target.value } }))}
+                            onBlur={() => patchModel(m.id)}
+                            placeholder="Optional"
+                            className="h-9 text-sm"
+                          />
                         </div>
                       </div>
                       {importances && (
@@ -576,9 +594,7 @@ function IntelControls({ onJob }) {
                           {importances.map(([feat, imp]) => (
                             <div key={feat} className="flex items-center gap-3">
                               <span className="text-xs text-plt-secondary w-32 truncate capitalize">{feat.replace(/_/g, ' ')}</span>
-                              <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                <div className="h-full bg-plt-accent" style={{ width: `${(imp * 100).toFixed(0)}%` }} />
-                              </div>
+                              <Progress value={imp * 100} className="flex-1 h-1.5" />
                               <span className="text-xs font-semibold text-plt-primary w-9 text-right">{(imp * 100).toFixed(0)}%</span>
                             </div>
                           ))}
@@ -622,12 +638,12 @@ function IntelControls({ onJob }) {
           {Object.entries(trainParams).map(([key, val]) => (
             <div key={key}>
               <Label>{PARAM_LABELS[key] || key}</Label>
-              <input
+              <Input
                 type="number"
                 value={val}
                 step={key === "lr" || key === "test_split" ? "0.01" : key === "alpha" ? "0.1" : "1"}
                 onChange={e => setTrainParams(p => ({ ...p, [key]: parseFloat(e.target.value) || 0 }))}
-                className="w-full h-9 px-3 text-sm font-semibold text-right border border-plt-border rounded-lg focus:border-plt-accent outline-none transition-all bg-white"
+                className="h-9 text-sm font-semibold text-right"
               />
             </div>
           ))}
@@ -646,7 +662,11 @@ function IntelControls({ onJob }) {
         <Btn variant="ghost" onClick={() => setShowWeightedScoringModal(true)}>Weighted Algorithm</Btn>
       </div>
 
-      {showWeightedModal && <WeightedScoringModal onClose={() => setShowWeightedScoringModal(false)} onJob={onJob} />}
+      <WeightedScoringModal
+        open={showWeightedModal}
+        onClose={() => setShowWeightedScoringModal(false)}
+        onJob={onJob}
+      />
     </div>
   );
 }
@@ -685,7 +705,7 @@ export default function Operations() {
         <HUD mlStatus={mlStatus} scrapeStatus={scrapeStatus} />
       </div>
 
-      {/* Main Workspace — scrolls on mobile, fixed columns on desktop */}
+      {/* Main Workspace */}
       <div className="flex-1 flex flex-col lg:flex-row overflow-y-auto lg:overflow-hidden px-4 sm:px-6 pb-6 pt-0 gap-5">
         {/* Left Half: Tabbed control card */}
         <div className="flex-1 min-h-[480px] lg:min-h-0 flex flex-col">

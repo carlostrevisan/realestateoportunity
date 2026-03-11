@@ -62,23 +62,49 @@ body {
 .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 
+/* shadcn/ui CSS variable bridge — maps to existing plt color palette */
+:root {
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+  --popover: #ffffff;
+  --popover-foreground: #0f172a;
+  --primary: #2563eb;
+  --primary-foreground: #ffffff;
+  --secondary: #f1f5f9;
+  --secondary-foreground: #475569;
+  --muted: #f1f5f9;
+  --muted-foreground: #94a3b8;
+  --accent: #f1f5f9;
+  --accent-foreground: #0f172a;
+  --destructive: #e11d48;
+  --destructive-foreground: #ffffff;
+  --border: #e2e8f0;
+  --input: #e2e8f0;
+  --ring: #2563eb;
+  --radius: 0.5rem;
+  --success: #059669;
+  --success-foreground: #ffffff;
+}
+
 /* Assertive Tactical Inputs */
-input[type="number"], 
+input[type="number"],
 input[type="month"],
 input[type="text"],
 textarea,
 select {
-  background-color: #ffffff !important;
-  border: 1px solid var(--plt-border) !important;
-  color: var(--plt-text-primary) !important;
+  background-color: #ffffff;
+  border: 1px solid var(--plt-border);
+  color: var(--plt-text-primary);
   border-radius: 4px;
   font-size: 12px;
   transition: all 0.15s ease;
 }
 
 input:focus, select:focus, textarea:focus {
-  outline: none !important;
-  border-color: var(--plt-accent) !important;
+  outline: none;
+  border-color: var(--plt-accent);
   ring: 2px solid rgba(37, 99, 235, 0.1);
 }
 

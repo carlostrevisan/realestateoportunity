@@ -98,23 +98,28 @@ describe("Dashboard — initial render", () => {
 describe("Dashboard — filter dropdowns populate from API", () => {
   it("populates the Market / City dropdown with values from /api/opportunities/filters", async () => {
     // Arrange
+    const user = userEvent.setup();
     renderDashboard();
 
-    // Act + Assert — wait for the component to re-render after the API call
-    await waitFor(() => {
-      const citySelect = document.querySelector('select[name="city"]');
-      // The mock returns ["Tampa", "Orlando"]
-      expect(within(citySelect).getByText("Tampa")).toBeInTheDocument();
+    // Act — shadcn Select renders a combobox trigger; open it to reveal options
+    await waitFor(async () => {
+      const triggers = screen.getAllByRole("combobox");
+      // triggers[0]=listing_type, triggers[1]=city, triggers[2]=zip
+      await user.click(triggers[1]);
+      // Assert — Tampa option is now visible in the open dropdown
+      expect(screen.getByRole("option", { name: "Tampa" })).toBeInTheDocument();
     });
   });
 
   it("populates the ZIP Code dropdown with values from /api/opportunities/filters", async () => {
+    // Arrange
+    const user = userEvent.setup();
     renderDashboard();
 
-    await waitFor(() => {
-      const zipSelect = document.querySelector('select[name="zip"]');
-      // The mock returns ["33606", "33629", "32803"]
-      expect(within(zipSelect).getByText("33606")).toBeInTheDocument();
+    await waitFor(async () => {
+      const triggers = screen.getAllByRole("combobox");
+      await user.click(triggers[2]);
+      expect(screen.getByRole("option", { name: "33606" })).toBeInTheDocument();
     });
   });
 });
@@ -138,18 +143,21 @@ describe("Dashboard — ROI colour toggles", () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe("Dashboard — Inventory Type selector", () => {
-  it("defaults to 'Active Listings'", () => {
+  it("defaults to 'Active Listings' in the trigger", () => {
     renderDashboard();
-    const select = document.querySelector('select[name="listing_type"]');
-    expect(select.value).toBe("for_sale");
-    expect(within(select).getByText("Active Listings")).toBeInTheDocument();
+    // shadcn Select renders the selected value inside the trigger button
+    const triggers = screen.getAllByRole("combobox");
+    // triggers[0] is the listing_type select
+    expect(within(triggers[0]).getByText("Active Listings")).toBeInTheDocument();
   });
 
-  it("shows Sold History and All Properties options", () => {
+  it("shows Sold History and All Properties options when opened", async () => {
+    const user = userEvent.setup();
     renderDashboard();
-    const select = document.querySelector('select[name="listing_type"]');
-    expect(within(select).getByText("Sold History")).toBeInTheDocument();
-    expect(within(select).getByText("All Properties")).toBeInTheDocument();
+    const triggers = screen.getAllByRole("combobox");
+    await user.click(triggers[0]);
+    expect(screen.getByRole("option", { name: "Sold History" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "All Properties" })).toBeInTheDocument();
   });
 });
 
@@ -209,8 +217,9 @@ describe("Dashboard — graceful API error handling", () => {
       expect(screen.getByText("Inventory Type")).toBeInTheDocument();
     });
 
-    // City dropdown falls back to empty list (only "All Markets" option)
-    const citySelect = document.querySelector('select[name="city"]');
-    expect(citySelect.options.length).toBe(1);
+    // City trigger falls back to "All Markets" (no city options loaded)
+    // shadcn Select shows the selected value in the trigger button text
+    const triggers = screen.getAllByRole("combobox");
+    expect(within(triggers[1]).getByText("All Markets")).toBeInTheDocument();
   });
 });

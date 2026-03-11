@@ -1,5 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
 import OpportunityMap from "../components/OpportunityMap.jsx";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const API_BASE = "";
 
@@ -65,21 +69,23 @@ export default function Dashboard() {
   }, [selectedProp]);
 
   const handleChange = useCallback((e) => {
-    const { name, value, type, checked } = e.target;
-    if (type === "checkbox") {
-      if (name === "show_new_builds") {
-        setFilters(prev => ({ ...prev, show_new_builds: checked }));
-      } else {
-        setRoiFilters((prev) => ({ ...prev, [name]: checked }));
-      }
-    } else {
-      setFilters((prev) => {
-        const next = { ...prev, [name]: value };
-        if (name === "city") next.zip = "";
-        if (name === "zip" && value !== "") next.city = "";
-        return next;
-      });
-    }
+    const { name, value } = e.target;
+    setFilters((prev) => {
+      const next = { ...prev, [name]: value };
+      if (name === "city") next.zip = "";
+      if (name === "zip" && value !== "") next.city = "";
+      return next;
+    });
+  }, []);
+
+  // shadcn Select uses onValueChange (not onChange), so we need a separate handler
+  const handleSelectChange = useCallback((name, value) => {
+    setFilters((prev) => {
+      const next = { ...prev, [name]: value };
+      if (name === "city") next.zip = "";
+      if (name === "zip" && value !== "") next.city = "";
+      return next;
+    });
   }, []);
 
   const clearFilters = useCallback(() => {
@@ -114,11 +120,16 @@ export default function Dashboard() {
                 <div className="w-1 h-1 bg-plt-accent rounded-full" />
                 Inventory Type
               </label>
-              <select name="listing_type" value={filters.listing_type} onChange={handleChange} className="bg-plt-bg border border-plt-border text-plt-primary rounded h-8 px-2 text-[11px] font-medium focus:border-plt-accent outline-none min-w-[120px] hover:bg-plt-panel transition-colors">
-                <option value="for_sale">Active Listings</option>
-                <option value="sold">Sold History</option>
-                <option value="all">All Properties</option>
-              </select>
+              <Select value={filters.listing_type} onValueChange={v => handleSelectChange("listing_type", v)}>
+                <SelectTrigger className="h-8 text-[11px] min-w-[120px] font-medium">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="for_sale">Active Listings</SelectItem>
+                  <SelectItem value="sold">Sold History</SelectItem>
+                  <SelectItem value="all">All Properties</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="flex flex-col gap-1.5">
@@ -126,10 +137,17 @@ export default function Dashboard() {
                 <div className="w-1 h-1 bg-plt-accent rounded-full" />
                 Market / City
               </label>
-              <select name="city" value={filters.city} onChange={handleChange} className="bg-plt-bg border border-plt-border text-plt-primary rounded h-8 px-2 text-[11px] font-medium focus:border-plt-accent outline-none min-w-[140px] hover:bg-plt-panel transition-colors">
-                <option value="">All Markets</option>
-                {availableFilters.cities.map(c => <option key={c} value={c}>{c.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</option>)}
-              </select>
+              <Select value={filters.city || "__all__"} onValueChange={v => handleSelectChange("city", v === "__all__" ? "" : v)}>
+                <SelectTrigger className="h-8 text-[11px] min-w-[140px] font-medium">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">All Markets</SelectItem>
+                  {availableFilters.cities.map(c => (
+                    <SelectItem key={c} value={c}>{c.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="flex flex-col gap-1.5">
@@ -137,10 +155,17 @@ export default function Dashboard() {
                 <div className="w-1 h-1 bg-plt-accent rounded-full" />
                 ZIP Code
               </label>
-              <select name="zip" value={filters.zip} onChange={handleChange} className="bg-plt-bg border border-plt-border text-plt-primary rounded h-8 px-2 text-[11px] font-medium focus:border-plt-accent outline-none min-w-[100px] hover:bg-plt-panel transition-colors">
-                <option value="">All ZIPs</option>
-                {availableFilters.zips.map(z => <option key={z} value={z}>{z}</option>)}
-              </select>
+              <Select value={filters.zip || "__all__"} onValueChange={v => handleSelectChange("zip", v === "__all__" ? "" : v)}>
+                <SelectTrigger className="h-8 text-[11px] min-w-[100px] font-medium">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">All ZIPs</SelectItem>
+                  {availableFilters.zips.map(z => (
+                    <SelectItem key={z} value={z}>{z}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="flex flex-col gap-1.5">
@@ -149,17 +174,25 @@ export default function Dashboard() {
                 Min. Opportunity
               </label>
               <div className="relative">
-                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-plt-muted text-[10px] font-sans font-bold">$</span>
-                <input type="number" name="min_roi" value={filters.min_roi} onChange={handleChange} placeholder="Any" className="bg-plt-bg border border-plt-border text-plt-primary rounded h-8 pl-5 pr-2 text-[11px] font-sans font-bold focus:border-plt-accent outline-none w-28 hover:bg-plt-panel transition-colors" />
+                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-plt-muted text-[10px] font-sans font-bold z-10">$</span>
+                <Input
+                  type="number"
+                  name="min_roi"
+                  value={filters.min_roi}
+                  onChange={handleChange}
+                  placeholder="Any"
+                  className="h-8 w-28 text-[11px] font-bold pl-5"
+                />
               </div>
             </div>
 
             <div className="flex items-center gap-3 h-8 mt-4">
               <label className="flex items-center gap-2 cursor-pointer group select-none">
-                <input type="checkbox" name="show_new_builds" checked={filters.show_new_builds} onChange={handleChange} className="hidden" />
-                <div className={`w-8 h-4 rounded-full relative transition-colors ${filters.show_new_builds ? 'bg-plt-accent' : 'bg-plt-border'}`}>
-                  <div className={`absolute top-0.5 left-0.5 w-3 h-3 bg-white rounded-full transition-transform ${filters.show_new_builds ? 'translate-x-4' : ''}`} />
-                </div>
+                <Switch
+                  checked={filters.show_new_builds}
+                  onCheckedChange={checked => setFilters(prev => ({ ...prev, show_new_builds: checked }))}
+                  aria-label="Market Context"
+                />
                 <span className="text-[10px] font-bold uppercase tracking-widest text-plt-text-secondary">Market Context</span>
               </label>
             </div>
@@ -180,8 +213,11 @@ export default function Dashboard() {
             <div className="flex items-center gap-4 bg-plt-bg/50 px-3 py-1.5 rounded-md border border-plt-border/50">
               {['green', 'yellow', 'red', 'gray'].map(color => (
                 <label key={color} className="flex items-center gap-2 cursor-pointer group select-none">
-                  <input type="checkbox" name={color} checked={roiFilters[color]} onChange={handleChange} className="hidden" />
-                  <div className={`w-2.5 h-2.5 rounded-full border transition-all ${roiFilters[color] ? `bg-opportunity-${color} border-transparent shadow-[0_0_6px_var(--opportunity-${color})]` : 'bg-transparent border-plt-border opacity-20'}`} />
+                  <Checkbox
+                    checked={roiFilters[color]}
+                    onCheckedChange={checked => setRoiFilters(prev => ({ ...prev, [color]: !!checked }))}
+                    className={`w-2.5 h-2.5 rounded-full border-0 data-[state=checked]:bg-opportunity-${color} data-[state=checked]:text-white`}
+                  />
                   <span className={`text-[10px] font-bold uppercase tracking-tighter transition-colors ${roiFilters[color] ? 'text-plt-primary' : 'text-plt-muted group-hover:text-plt-primary/50'}`}>
                     {color === 'green' ? 'High' : color === 'yellow' ? 'Mid' : color === 'red' ? 'Loss' : 'None'}
                   </span>
@@ -194,13 +230,13 @@ export default function Dashboard() {
 
       <div className="flex-1 flex overflow-hidden">
         <div className={`flex-1 relative transition-all duration-500 ${selectedProp ? 'mr-0' : ''}`}>
-          <OpportunityMap 
-            filters={filters} 
-            roiFilters={roiFilters} 
-            onSelectProperty={handleSelectProperty} 
-            selectedId={selectedProp?.id} 
-            comparables={comparables} 
-            focusCoord={focusCoord} 
+          <OpportunityMap
+            filters={filters}
+            roiFilters={roiFilters}
+            onSelectProperty={handleSelectProperty}
+            selectedId={selectedProp?.id}
+            comparables={comparables}
+            focusCoord={focusCoord}
             newBuilds={newBuilds}
           />
         </div>
@@ -316,7 +352,7 @@ export default function Dashboard() {
                     const badgeCls = isNew
                       ? 'bg-cyan-500 text-white'
                       : 'bg-violet-500/20 text-violet-400 border border-violet-500/30';
-                    
+
                     const pricePerSqft = comp.sold_price && comp.sqft ? Math.round(comp.sold_price / comp.sqft) : null;
                     const distanceDisplay = comp.distance_mi ? comp.distance_mi.toFixed(2) + ' mi' : '—';
 

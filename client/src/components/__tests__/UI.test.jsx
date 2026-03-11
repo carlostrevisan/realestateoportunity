@@ -143,24 +143,24 @@ describe("Btn", () => {
     expect(handleClick).not.toHaveBeenCalled();
   });
 
-  it("renders with the primary variant class by default", () => {
+  it("renders with the primary variant by default", () => {
     render(<Btn>Action</Btn>);
-    expect(screen.getByRole("button")).toHaveClass("bg-plt-accent");
+    expect(screen.getByRole("button")).toHaveAttribute("data-variant", "primary");
   });
 
-  it("renders with the danger variant class when variant='danger'", () => {
+  it("renders with the danger variant when variant='danger'", () => {
     render(<Btn variant="danger">Delete</Btn>);
-    expect(screen.getByRole("button")).toHaveClass("bg-plt-danger");
+    expect(screen.getByRole("button")).toHaveAttribute("data-variant", "danger");
   });
 
-  it("renders with the success variant class when variant='success'", () => {
+  it("renders with the success variant when variant='success'", () => {
     render(<Btn variant="success">Save</Btn>);
-    expect(screen.getByRole("button")).toHaveClass("bg-plt-success");
+    expect(screen.getByRole("button")).toHaveAttribute("data-variant", "success");
   });
 
-  it("renders with the ghost variant class when variant='ghost'", () => {
+  it("renders with the ghost variant when variant='ghost'", () => {
     render(<Btn variant="ghost">Cancel</Btn>);
-    expect(screen.getByRole("button")).toHaveClass("bg-transparent");
+    expect(screen.getByRole("button")).toHaveAttribute("data-variant", "ghost");
   });
 
   it("is marked as disabled in the DOM when disabled prop is true", () => {

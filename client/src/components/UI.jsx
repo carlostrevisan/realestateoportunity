@@ -1,11 +1,16 @@
 // ── Shared UI Primitives — RE Opportunity Engine ──────────────────────
 // Single source of truth for all reusable atoms across the application.
 
+import { Label as ShadLabel } from "./ui/label";
+import { Button } from "./ui/button";
+import { Badge } from "./ui/badge";
+import { Card, CardHeader, CardContent } from "./ui/card";
+
 export function Label({ children }) {
   return (
-    <span className="text-[9px] font-black uppercase tracking-[0.15em] text-plt-muted mb-1.5 block font-sans">
+    <ShadLabel className="text-[9px] font-black uppercase tracking-[0.15em] text-plt-muted mb-1.5 block font-sans">
       {children}
-    </span>
+    </ShadLabel>
   );
 }
 
@@ -34,48 +39,52 @@ export function StatusDot({ status }) {
   );
 }
 
-// Panel — glassmorphism card with tactical header
+// Panel — shadcn Card with tactical header
 export function Panel({ title, tag, children, className = "" }) {
   return (
-    <div className={`bg-plt-panel border border-plt-border flex flex-col relative overflow-hidden rounded-xl shadow-sm ${className}`}>
-      <div className="flex items-center justify-between px-5 py-3.5 border-b border-plt-border bg-slate-50/80 backdrop-blur-sm flex-shrink-0">
+    <Card className={`flex flex-col overflow-hidden rounded-xl shadow-sm ${className}`}>
+      <CardHeader className="px-5 py-3.5 border-b border-plt-border bg-slate-50/80 backdrop-blur-sm flex-shrink-0 flex-row items-center justify-between space-y-0">
         <div className="flex items-center gap-3">
           <div className="w-1.5 h-1.5 bg-plt-accent rounded-full" />
           <span className="text-[11px] font-black uppercase tracking-widest text-plt-primary font-sans">{title}</span>
         </div>
         {tag && (
-          <span className="text-[9px] font-bold text-plt-muted bg-white border border-plt-border px-2 py-0.5 rounded tracking-widest font-sans">
+          <Badge variant="outline" className="text-[9px] tracking-widest text-plt-muted">
             {tag}
-          </span>
+          </Badge>
         )}
-      </div>
-      <div className="p-5 flex-1 overflow-y-auto custom-scrollbar font-sans">{children}</div>
-    </div>
+      </CardHeader>
+      <CardContent className="p-5 flex-1 overflow-y-auto custom-scrollbar font-sans pt-5">
+        {children}
+      </CardContent>
+    </Card>
   );
 }
 
-// Btn — standard action button with tactile feedback
-export function Btn({ children, onClick, disabled, variant = "primary", className = "" }) {
-  const variants = {
-    primary: "bg-plt-accent text-white hover:bg-plt-accent-hover shadow-sm",
-    success: "bg-plt-success text-white hover:bg-plt-success-hover shadow-sm",
-    danger:  "bg-plt-danger text-white hover:bg-plt-danger-hover shadow-sm",
-    ghost:   "bg-transparent border border-plt-border text-plt-secondary hover:bg-plt-hover hover:text-plt-primary",
-    outline: "bg-transparent border border-plt-accent text-plt-accent hover:bg-plt-accent/5",
-  };
+// Btn — shadcn Button wrapper with variant mapping + data-variant for testability
+const VARIANT_MAP = {
+  primary: "default",
+  success: "success",
+  danger:  "destructive",
+  ghost:   "ghost",
+  outline: "outline",
+};
 
+export function Btn({ children, onClick, disabled, variant = "primary", className = "" }) {
   return (
-    <button
-      className={`w-full text-sm font-semibold py-2.5 px-4 transition-all duration-150 rounded-lg active:scale-[0.98] disabled:opacity-30 disabled:cursor-not-allowed disabled:active:scale-100 ${variants[variant]} ${className} font-sans`}
-      onClick={onClick}
+    <Button
+      variant={VARIANT_MAP[variant] ?? "default"}
       disabled={disabled}
+      onClick={onClick}
+      data-variant={variant}
+      className={`w-full font-sans ${className}`}
     >
       {children}
-    </button>
+    </Button>
   );
 }
 
-// StatusBadge — professional job history chip for the Execution History bar
+// StatusBadge — job history chip using shadcn Badge colors
 const STATUS_BORDER = {
   running:   "border-l-plt-accent",
   completed: "border-l-plt-success",
@@ -90,6 +99,7 @@ export function StatusBadge({ job, isActive, onClick }) {
   return (
     <button
       onClick={onClick}
+      data-active={isActive}
       className={`flex items-center gap-2.5 px-3 py-2 rounded-xl transition-all duration-150 active:scale-[0.98] whitespace-nowrap font-sans ${
         isActive
           ? "bg-plt-accent border-2 border-plt-accent text-white shadow-lg shadow-plt-accent/20"
