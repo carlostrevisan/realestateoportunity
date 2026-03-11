@@ -85,20 +85,6 @@ describe("POST /api/scrape/trigger — validation", () => {
     expect(res.body.error).toMatch(/5 digits/i);
   });
 
-  it("returns 400 when market is not one of the valid values", async () => {
-    // Arrange
-    const { app } = buildApp();
-
-    // Act
-    const res = await request(app)
-      .post("/api/scrape/trigger")
-      .send({ type: "for_sale", market: "miami" }); // not a supported market
-
-    // Assert
-    expect(res.status).toBe(400);
-    expect(res.body.error).toMatch(/invalid market/i);
-  });
-
   it("returns 400 when type is 'sold' but start/end are missing", async () => {
     // Arrange
     const { app } = buildApp();

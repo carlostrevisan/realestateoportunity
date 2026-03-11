@@ -190,8 +190,12 @@ def run_scrape():
         return jsonify({"error": "sold type requires start and end (YYYY-MM)"}), 400
 
     # Build CLI command
-    target = f"--zip {zip_code}" if zip_code else f"--market {market}"
-    cmd = [sys.executable, "scraper.py", *target.split(), "--type", scrape_type]
+    cmd = [sys.executable, "scraper.py", "--type", scrape_type]
+    if zip_code:
+        cmd += ["--zip", str(zip_code)]
+    else:
+        cmd += ["--market", str(market)]
+
     if scrape_type == "sold":
         cmd += ["--start", start, "--end", end]
     if throttle:

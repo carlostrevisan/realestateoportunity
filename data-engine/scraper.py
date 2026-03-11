@@ -20,6 +20,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+import re
+
 MARKET_CITIES = {
     "tampa":         "Tampa, FL",
     "orlando":       "Orlando, FL",
@@ -27,6 +29,14 @@ MARKET_CITIES = {
     "winter_park":   "Winter Park, FL",
 }
 
+def _get_location_and_zips(market_or_zip):
+    if market_or_zip in MARKET_CITIES:
+        return MARKET_CITIES[market_or_zip], None
+    # If it's a 5-digit zip, we treat it as a zip target
+    if re.match(r"^\d{5}$", str(market_or_zip)):
+        return market_or_zip, [market_or_zip]
+    # Otherwise, it's a custom location string (e.g. "Miami, FL")
+    return market_or_zip, None
 
 MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
 
@@ -85,11 +95,7 @@ def scrape_sold_range(market_or_zip, start_ym, end_ym, throttle=None, dry_run=Fa
     sold_ids = db.fetch_sold_mls_ids()
     logger.info(f"[SYST] Loaded {len(sold_ids)} existing sold MLS IDs for deduplication")
 
-    if market_or_zip in MARKET_CITIES:
-        # Always fetch all ZIPs HomeHarvest returns for the city — no hardcoded filter
-        location, target_zips = MARKET_CITIES[market_or_zip], None
-    else:
-        location, target_zips = market_or_zip, [market_or_zip]
+    location, target_zips = _get_location_and_zips(market_or_zip)
 
     current = _parse_ym(start_ym)
     end_date_obj = _parse_ym(end_ym)
@@ -210,11 +216,7 @@ def scrape_sold_range(market_or_zip, start_ym, end_ym, throttle=None, dry_run=Fa
 def scrape_for_sale(market_or_zip, throttle=None, dry_run=False, all_zips=False):
     db.ensure_schema()
 
-    if market_or_zip in MARKET_CITIES:
-        # Always fetch all ZIPs HomeHarvest returns for the city — no hardcoded filter
-        location, target_zips = MARKET_CITIES[market_or_zip], None
-    else:
-        location, target_zips = market_or_zip, [market_or_zip]
+    location, target_zips = _get_location_and_zips(market_or_zip)
 
     # Active listings are always re-fetched — prices change, and properties that were
     # previously sold may relist. No in-memory dedup: the upsert handles duplicates.
@@ -251,7 +253,8 @@ def _resolve_targets(za, ma):
     m = ma.lower()
     if m == "all": return list(MARKET_CITIES.keys())
     if m in MARKET_CITIES: return [m]
-    raise ValueError(f"Unknown market '{ma}'")
+    # Allow custom market strings
+    return [ma]
 
 def main():
     parser = argparse.ArgumentParser()

@@ -330,6 +330,7 @@ const ALGOS = [
 
 function IngestionControls({ onJob }) {
   const [market, setMarket] = useState("tampa");
+  const [customMarket, setCustomMarket] = useState("");
   const [start, setStart] = useState("2022-01");
   const lastMonth = new Date(); lastMonth.setMonth(lastMonth.getMonth() - 1);
   const [end, setEnd] = useState(`${lastMonth.getFullYear()}-${String(lastMonth.getMonth() + 1).padStart(2, '0')}`);
@@ -340,7 +341,15 @@ function IngestionControls({ onJob }) {
   const trigger = async (type, params = {}) => {
     setRunning(p => ({ ...p, [type]: true }));
     const startTime = Date.now();
-    const body = { type, market, throttle: parseInt(throttle), force_renew: forceRenew, all_zips: true, ...params };
+    const finalMarket = market === "custom" ? customMarket : market;
+    
+    if (market === "custom" && !customMarket.trim()) {
+      alert("Please enter a market name (e.g. 'Miami, FL')");
+      setRunning(p => ({ ...p, [type]: false }));
+      return;
+    }
+
+    const body = { type, market: finalMarket, throttle: parseInt(throttle), force_renew: forceRenew, all_zips: true, ...params };
     const res = await fetch(`${API}/api/scrape/trigger`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     const data = await res.json();
     if (data.job_id) onJob(data.job_id);
@@ -355,17 +364,31 @@ function IngestionControls({ onJob }) {
       <div className="grid grid-cols-2 gap-4">
         <div>
           <Label>Market</Label>
-          <Select value={market} onValueChange={setMarket}>
-            <SelectTrigger className="h-10 text-sm font-medium">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Markets</SelectItem>
-              {MARKETS.map(m => (
-                <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="space-y-2">
+            <Select value={market} onValueChange={setMarket}>
+              <SelectTrigger className="h-10 text-sm font-medium">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Markets</SelectItem>
+                {MARKETS.map(m => (
+                  <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                ))}
+                <SelectItem value="custom" className="border-t border-slate-100 mt-1 pt-2 font-semibold text-plt-accent">
+                  Other...
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            {market === "custom" && (
+              <Input 
+                placeholder="City, State (e.g. Miami, FL)" 
+                value={customMarket}
+                onChange={e => setCustomMarket(e.target.value)}
+                className="h-9 text-xs"
+                autoFocus
+              />
+            )}
+          </div>
         </div>
         <div>
           <Label>Throttle</Label>
