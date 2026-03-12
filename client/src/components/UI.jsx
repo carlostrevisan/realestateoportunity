@@ -4,7 +4,6 @@
 import { Label as ShadLabel } from "./ui/label";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
-import { Card, CardHeader, CardContent } from "./ui/card";
 
 export function Label({ children }) {
   return (
@@ -36,28 +35,6 @@ export function StatusDot({ status }) {
   };
   return (
     <span className={`inline-block w-2 h-2 rounded-full flex-shrink-0 ${map[status] || map.idle}`} />
-  );
-}
-
-// Panel — shadcn Card with tactical header
-export function Panel({ title, tag, children, className = "" }) {
-  return (
-    <Card className={`flex flex-col overflow-hidden rounded-xl shadow-sm ${className}`}>
-      <CardHeader className="px-5 py-3.5 border-b border-plt-border bg-slate-50/80 backdrop-blur-sm flex-shrink-0 flex-row items-center justify-between space-y-0">
-        <div className="flex items-center gap-3">
-          <div className="w-1.5 h-1.5 bg-plt-accent rounded-full" />
-          <span className="text-[11px] font-black uppercase tracking-widest text-plt-primary font-sans">{title}</span>
-        </div>
-        {tag && (
-          <Badge variant="outline" className="text-[9px] tracking-widest text-plt-muted">
-            {tag}
-          </Badge>
-        )}
-      </CardHeader>
-      <CardContent className="p-5 flex-1 overflow-y-auto custom-scrollbar font-sans pt-5">
-        {children}
-      </CardContent>
-    </Card>
   );
 }
 

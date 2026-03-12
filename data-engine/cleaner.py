@@ -101,44 +101,44 @@ def normalize_for_db(df: pd.DataFrame, default_zip: str = None) -> list[dict]:
 
     Maps HomeHarvest column names to our schema column names.
     """
-    records = []
-
     zip_col = _find_col(df, ["zip_code", "postal_code", "zip"])
 
     col_map = {
-        "mls_id": _find_col(df, ["mls_id", "property_id", "listing_id", "id"]),
-        "address": _find_col(df, ["full_street_line", "street_address", "address"]),
-        "city": _find_col(df, ["city"]),
-        "lat": _find_col(df, ["latitude", "lat"]),
-        "lng": _find_col(df, ["longitude", "lng", "lon"]),
-        "year_built": _find_col(df, ["year_built", "yearbuilt"]),
-        "sqft": _find_col(df, ["sqft", "square_feet", "living_sqft"]),
-        "lot_sqft": _find_col(df, ["lot_sqft", "lot_size", "lot_square_feet"]),
-        "list_price": _find_col(df, ["list_price", "price"]),
-        "sold_price": _find_col(df, ["sold_price", "close_price", "last_sold_price"]),
-        "sold_date": _find_col(df, ["sold_date", "close_date", "date_sold", "last_sold_date"]),
+        "mls_id":        _find_col(df, ["mls_id", "property_id", "listing_id", "id"]),
+        "address":       _find_col(df, ["full_street_line", "street_address", "address"]),
+        "city":          _find_col(df, ["city"]),
+        "lat":           _find_col(df, ["latitude", "lat"]),
+        "lng":           _find_col(df, ["longitude", "lng", "lon"]),
+        "year_built":    _find_col(df, ["year_built", "yearbuilt"]),
+        "sqft":          _find_col(df, ["sqft", "square_feet", "living_sqft"]),
+        "lot_sqft":      _find_col(df, ["lot_sqft", "lot_size", "lot_square_feet"]),
+        "list_price":    _find_col(df, ["list_price", "price"]),
+        "sold_price":    _find_col(df, ["sold_price", "close_price", "last_sold_price"]),
+        "sold_date":     _find_col(df, ["sold_date", "close_date", "date_sold", "last_sold_date"]),
         "property_type": _find_col(df, ["style", "property_type", "home_type", "type"]),
     }
 
-    for _, row in df.iterrows():
-        # Try to get ZIP from row, fallback to default_zip
-        row_zip = str(row.get(zip_col))[:5] if zip_col and pd.notna(row.get(zip_col)) else default_zip
-        record = {"zip": row_zip}
-        
-        for db_col, src_col in col_map.items():
-            if src_col:
-                val = row.get(src_col)
-                record[db_col] = None if pd.isna(val) else val
-            else:
-                record[db_col] = None
+    # Select and rename columns that exist in df
+    rename_map = {src: db for db, src in col_map.items() if src is not None}
+    out = df[list(rename_map.keys())].rename(columns=rename_map).copy()
 
-        # Ensure mls_id is a string (required for upsert)
-        if record.get("mls_id") is not None:
-            record["mls_id"] = str(record["mls_id"])
+    # Fill in columns missing from the source data
+    for db_col, src_col in col_map.items():
+        if src_col is None:
+            out[db_col] = None
 
-        records.append(record)
+    # ZIP: truncate to 5 chars, fallback to default_zip
+    if zip_col:
+        out['zip'] = df[zip_col].where(df[zip_col].notna(), default_zip).astype(str).str[:5]
+    else:
+        out['zip'] = default_zip
 
-    return records
+    # mls_id must be a string for upsert key
+    if 'mls_id' in out.columns:
+        out['mls_id'] = out['mls_id'].where(out['mls_id'].isna(), out['mls_id'].astype(str))
+
+    # Replace NaN → None for DB compatibility
+    return out.where(out.notna(), other=None).to_dict('records')
 
 
 def _find_col(df: pd.DataFrame, candidates: list[str]) -> str | None:

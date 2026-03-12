@@ -9,18 +9,13 @@ const router = express.Router();
 router.get("/filters", async (req, res) => {
   const db = req.app.locals.db;
   try {
-    const citiesQuery = "SELECT DISTINCT city FROM properties WHERE city IS NOT NULL ORDER BY city ASC";
-    const zipsQuery = "SELECT DISTINCT zip FROM properties WHERE zip IS NOT NULL ORDER BY zip ASC";
-
-    const [citiesRes, zipsRes] = await Promise.all([
-      db.query(citiesQuery),
-      db.query(zipsQuery)
-    ]);
-
-    res.json({
-      cities: citiesRes.rows.map(r => r.city),
-      zips: zipsRes.rows.map(r => r.zip)
-    });
+    const { rows: [r] } = await db.query(`
+      SELECT
+        array_agg(DISTINCT city ORDER BY city) FILTER (WHERE city IS NOT NULL AND city != '') AS cities,
+        array_agg(DISTINCT zip  ORDER BY zip)  FILTER (WHERE zip  IS NOT NULL)               AS zips
+      FROM properties
+    `);
+    res.json({ cities: r.cities || [], zips: r.zips || [] });
   } catch (err) {
     console.error("[filters] Query error:", err.message);
     res.status(500).json({ error: "Failed to fetch filters" });
@@ -63,26 +58,22 @@ router.get("/:id/comparables", async (req, res) => {
     // - Focused on newly built houses (>= 2015) to match rebuild strategy
     // - Radius reduced to 0.5 miles (roughly 0.0075 degrees)
     const compsQuery = `
-      SELECT
-        id, address, city, zip, year_built, sqft,
-        sold_price, sold_date,
-        lat, lng,
-        -- Haversine distance
-        (3959 * acos(LEAST(1.0, cos(radians($1)) * cos(radians(lat)) * cos(radians(lng) - radians($2)) + sin(radians($1)) * sin(radians(lat))))) AS distance_mi
-      FROM properties
-      WHERE 
-        listing_type = 'sold'
-        AND id != $4
-        AND lat IS NOT NULL 
-        AND lng IS NOT NULL
-        AND year_built >= 2015
-        -- Geographic bounding box (roughly 0.5 miles)
-        AND lat BETWEEN $1 - 0.0075 AND $1 + 0.0075
-        AND lng BETWEEN $2 - 0.0075 AND $2 + 0.0075
-      ORDER BY 
-        -- Rank primarily by distance, then by size similarity
-        (3959 * acos(LEAST(1.0, cos(radians($1)) * cos(radians(lat)) * cos(radians(lng) - radians($2)) + sin(radians($1)) * sin(radians(lat))))) ASC,
-        ABS(sqft - $3) ASC
+      SELECT * FROM (
+        SELECT
+          id, address, city, zip, year_built, sqft,
+          sold_price, sold_date, lat, lng,
+          (3959 * acos(LEAST(1.0, cos(radians($1)) * cos(radians(lat)) * cos(radians(lng) - radians($2)) + sin(radians($1)) * sin(radians(lat))))) AS distance_mi
+        FROM properties
+        WHERE
+          listing_type = 'sold'
+          AND id != $4
+          AND lat IS NOT NULL
+          AND lng IS NOT NULL
+          AND year_built >= 2015
+          AND lat BETWEEN $1 - 0.0075 AND $1 + 0.0075
+          AND lng BETWEEN $2 - 0.0075 AND $2 + 0.0075
+      ) sub
+      ORDER BY distance_mi ASC, ABS(sqft - $3) ASC
       LIMIT 10
     `;
     

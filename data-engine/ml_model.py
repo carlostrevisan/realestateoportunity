@@ -52,39 +52,37 @@ def calculate_geospatial_features(df, reference_df):
         logger.warning("[SKIP] No valid reference data for geospatial features. Using 0.")
         return np.zeros(len(df))
 
-    avg_prices = []
-    
-    # Extract coordinates once for speed (Ensuring float type)
-    ref_lats = ref['lat'].astype(float).values
-    ref_lngs = ref['lng'].astype(float).values
+    ref_lats   = ref['lat'].astype(float).values
+    ref_lngs   = ref['lng'].astype(float).values
     ref_prices = ref['price_sqft'].values
-    ref_ids = ref['id'].values
-    ref_zips = ref['zip'].values
+    ref_ids    = ref['id'].values
+    ref_zips   = ref['zip'].astype(str).values
 
-    for idx, row in df.iterrows():
-        # Handle cases where current row has no coordinates
-        if pd.isna(row['lat']) or pd.isna(row['lng']):
-            avg_prices.append(0.0)
-            continue
+    df_lats = df['lat'].astype(float).values
+    df_lngs = df['lng'].astype(float).values
+    df_ids  = df['id'].values
+    df_zips = df['zip'].astype(str).values
+    has_coords = ~(np.isnan(df_lats) | np.isnan(df_lngs))
 
-        dist = haversine_distance(float(row['lat']), float(row['lng']), ref_lats, ref_lngs)
-        # Find matches within 0.5 miles, excluding self
-        mask = (dist <= 0.5) & (ref_ids != row['id'])
-        
-        nearby_prices = ref_prices[mask]
-        if nearby_prices.size > 0:
-            avg_prices.append(nearby_prices.mean())
-        else:
-            # Fallback 1: ZIP average from reference
-            zip_mask = (ref_zips == row['zip'])
-            zip_prices = ref_prices[zip_mask]
-            if zip_prices.size > 0:
-                avg_prices.append(zip_prices.mean())
-            else:
-                # Fallback 2: Global average from reference
-                avg_prices.append(ref_prices.mean())
-            
-    return np.array(avg_prices)
+    # Broadcast: (n_df, 1) × (1, n_ref) → (n_df, n_ref) distance matrix
+    safe_lats = np.where(has_coords, df_lats, 0.0)[:, None]
+    safe_lngs = np.where(has_coords, df_lngs, 0.0)[:, None]
+    dist_matrix = haversine_distance(safe_lats, safe_lngs, ref_lats[None, :], ref_lngs[None, :])
+
+    nearby = (dist_matrix <= 0.5) & (df_ids[:, None] != ref_ids[None, :])
+    nearby[~has_coords] = False
+
+    counts    = nearby.sum(axis=1)
+    price_sum = (ref_prices[None, :] * nearby).sum(axis=1)
+    has_nearby = counts > 0
+
+    global_avg = float(ref_prices.mean())
+    zip_avgs   = {z: float(ref_prices[ref_zips == z].mean()) for z in np.unique(ref_zips)}
+    zip_fallback = np.array([zip_avgs.get(z, global_avg) for z in df_zips])
+
+    result = np.where(has_nearby, price_sum / np.where(has_nearby, counts, 1), zip_fallback)
+    result[~has_coords] = 0.0
+    return result
 
 def sanity_check_data(df, stage="training"):
     """Validates data quality before proceeding."""
@@ -290,17 +288,15 @@ def score_properties():
                 X[col] = pd.to_numeric(X[col], errors='coerce').fillna(0)
         
         df['predicted_rebuild_value'] = model.predict(X).astype(int)
-        
-        results = []
-        for _, row in df.iterrows():
-            cost_per_sqft = float(row['construction_cost_per_sqft'] or 175.0)
-            total_build_cost = row['sqft'] * cost_per_sqft
-            opp = row['predicted_rebuild_value'] - (row['list_price'] + total_build_cost)
-            results.append({
-                "id": int(row['id']),
-                "predicted_rebuild_value": int(row['predicted_rebuild_value']),
-                "opportunity_result": int(opp)
-            })
+
+        cost_per_sqft = df['construction_cost_per_sqft'].fillna(175.0).astype(float)
+        opp = df['predicted_rebuild_value'] - (df['list_price'] + df['sqft'] * cost_per_sqft)
+        results = (
+            df[['id', 'predicted_rebuild_value']]
+            .assign(opportunity_result=opp.astype(int))
+            .astype({'id': int, 'predicted_rebuild_value': int, 'opportunity_result': int})
+            .to_dict('records')
+        )
 
         db.write_opportunity_scores(results)
         db.complete_model_run(run_id, properties_scored=len(results))
@@ -311,8 +307,6 @@ def score_properties():
 
 def score_properties_weighted(weights: dict):
     run_id = db.start_model_run("score_weighted")
-    pd.set_option('future.no_silent_downcasting', True)
-
     try:
         sold_data = db.fetch_sold_for_training()
         if not sold_data:
@@ -373,11 +367,17 @@ def score_properties_weighted(weights: dict):
         
         df['predicted_rebuild_value'] = (p10 + df['weighted_score'] * price_range).fillna(p10).astype(int)
 
-        results = []
-        for _, row in df.iterrows():
-            cost_sqft, sqft, acq = float(row['construction_cost_per_sqft'] or 175.0), float(row['sqft'] or 0.0), float(row['list_price'] or 0.0)
-            opp = float(row['predicted_rebuild_value']) - (acq + (sqft * cost_sqft))
-            results.append({"id": int(row['id']), "predicted_rebuild_value": int(row['predicted_rebuild_value']), "opportunity_result": int(opp) if np.isfinite(opp) else 0})
+        cost_sqft = df['construction_cost_per_sqft'].fillna(175.0).astype(float)
+        sqft_col  = df['sqft'].fillna(0.0).astype(float)
+        acq_col   = df['list_price'].fillna(0.0).astype(float)
+        opp       = df['predicted_rebuild_value'].astype(float) - (acq_col + sqft_col * cost_sqft)
+        opp_int   = np.where(np.isfinite(opp), opp.astype(int), 0)
+        results = (
+            df[['id', 'predicted_rebuild_value']]
+            .assign(opportunity_result=opp_int)
+            .astype({'id': int, 'predicted_rebuild_value': int, 'opportunity_result': int})
+            .to_dict('records')
+        )
 
         db.write_opportunity_scores(results)
         db.complete_model_run(run_id, properties_scored=len(results), training_context=json.dumps({"weights": weights}))

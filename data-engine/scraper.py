@@ -244,8 +244,9 @@ def _parse_ym(ym):
 
 def _filter_to_zips(df, tz):
     if not tz: return df
+    tz_set = set(tz)
     for c in ["zip_code", "postal_code", "zip"]:
-        if c in df.columns: return df[df[c].astype(str).str[:5].isin(set(tz))]
+        if c in df.columns: return df[df[c].astype(str).str[:5].isin(tz_set)]
     return df
 
 def _resolve_targets(za, ma):

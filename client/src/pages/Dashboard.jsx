@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import OpportunityMap from "../components/OpportunityMap.jsx";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
@@ -7,15 +7,16 @@ import { Checkbox } from "@/components/ui/checkbox";
 
 const API_BASE = "";
 
-export default function Dashboard() {
-  const [filters, setFilters] = useState({
-    city: "", zip: "", min_roi: "", max_year_built: "", listing_type: "for_sale",
-    show_new_builds: false,
-  });
+const INITIAL_FILTERS = {
+  city: "", zip: "", min_roi: "", max_year_built: "", listing_type: "for_sale",
+  show_new_builds: false,
+};
 
-  const [roiFilters, setRoiFilters] = useState({
-    green: true, yellow: true, red: true, gray: true,
-  });
+const INITIAL_ROI_FILTERS = { green: true, yellow: false, red: false, gray: false };
+
+export default function Dashboard() {
+  const [filters, setFilters] = useState(INITIAL_FILTERS);
+  const [roiFilters, setRoiFilters] = useState(INITIAL_ROI_FILTERS);
 
   const [availableFilters, setAvailableFilters] = useState({ cities: [], zips: [] });
   const [selectedProp, setSelectedProp] = useState(null);
@@ -89,13 +90,8 @@ export default function Dashboard() {
   }, []);
 
   const clearFilters = useCallback(() => {
-    setFilters({
-      city: "", zip: "", min_roi: "", max_year_built: "", listing_type: "for_sale",
-      show_new_builds: false,
-    });
-    setRoiFilters({
-      green: true, yellow: true, red: true, gray: true,
-    });
+    setFilters(INITIAL_FILTERS);
+    setRoiFilters(INITIAL_ROI_FILTERS);
   }, []);
 
   const handleSelectProperty = useCallback((prop) => {
@@ -106,7 +102,10 @@ export default function Dashboard() {
     setFocusCoord(coord);
   }, []);
 
-  const hasActiveFilters = filters.city !== "" || filters.zip !== "" || filters.min_roi !== "" || filters.max_year_built !== "" || filters.listing_type !== "for_sale" || filters.show_new_builds || !roiFilters.green || !roiFilters.yellow || !roiFilters.red || !roiFilters.gray;
+  const hasActiveFilters = useMemo(
+    () => filters.city !== "" || filters.zip !== "" || filters.min_roi !== "" || filters.max_year_built !== "" || filters.listing_type !== "for_sale" || filters.show_new_builds || !roiFilters.green || !roiFilters.yellow || !roiFilters.red || !roiFilters.gray,
+    [filters, roiFilters]
+  );
 
   return (
     <div className="flex flex-col h-full w-full overflow-hidden bg-plt-bg text-plt-primary">

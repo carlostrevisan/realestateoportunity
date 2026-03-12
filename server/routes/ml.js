@@ -198,4 +198,85 @@ router.delete("/models/:id", async (req, res) => {
   }
 });
 
+/**
+ * GET /api/ml/results
+ * Returns opportunity_result distribution across all scored properties.
+ */
+router.get("/results", async (req, res) => {
+  const db = req.app.locals.db;
+  try {
+    const { rows: [r] } = await db.query(`
+      SELECT
+        COUNT(*) FILTER (WHERE opportunity_result < 0)                                       AS red_lt0,
+        COUNT(*) FILTER (WHERE opportunity_result >= 0     AND opportunity_result < 50000)   AS yellow_0_50k,
+        COUNT(*) FILTER (WHERE opportunity_result >= 50000 AND opportunity_result < 100000)  AS yellow_50_100k,
+        COUNT(*) FILTER (WHERE opportunity_result >= 100000 AND opportunity_result < 200000) AS yellow_100_200k,
+        COUNT(*) FILTER (WHERE opportunity_result >= 200000 AND opportunity_result < 500000) AS green_200_500k,
+        COUNT(*) FILTER (WHERE opportunity_result >= 500000)                                 AS green_gt500k,
+        COUNT(*)                                                                             AS total,
+        COALESCE(AVG(opportunity_result)::integer, 0)                                        AS avg_opportunity
+      FROM properties
+      WHERE opportunity_result IS NOT NULL
+    `);
+
+    const red    = parseInt(r.red_lt0);
+    const yellow = parseInt(r.yellow_0_50k) + parseInt(r.yellow_50_100k) + parseInt(r.yellow_100_200k);
+    const green  = parseInt(r.green_200_500k) + parseInt(r.green_gt500k);
+    const total  = parseInt(r.total);
+
+    res.json({
+      distribution: [
+        { label: "<$0",       count: parseInt(r.red_lt0),          color: "red"    },
+        { label: "$0–50k",    count: parseInt(r.yellow_0_50k),     color: "yellow" },
+        { label: "$50–100k",  count: parseInt(r.yellow_50_100k),   color: "yellow" },
+        { label: "$100–200k", count: parseInt(r.yellow_100_200k),  color: "yellow" },
+        { label: "$200–500k", count: parseInt(r.green_200_500k),   color: "green"  },
+        { label: ">$500k",    count: parseInt(r.green_gt500k),      color: "green"  },
+      ],
+      totals: { green, yellow, red, total },
+      avg_opportunity: parseInt(r.avg_opportunity),
+    });
+  } catch (err) {
+    console.error("[ml/results] Error:", err.message);
+    res.status(500).json({ error: "Failed to fetch results" });
+  }
+});
+
+/**
+ * GET /api/ml/ops-log
+ * Returns a unified, chronologically sorted log of all operations from the DB
+ * (model_runs + scrape_log). Persistent across restarts — unlike in-memory job logs.
+ */
+router.get("/ops-log", async (req, res) => {
+  const db = req.app.locals.db;
+  try {
+    const [{ rows: mlOps }, { rows: scrapeOps }] = await Promise.all([
+      db.query(`
+        SELECT id, run_type AS type, status, started_at, completed_at,
+               properties_trained, properties_scored, r2_score,
+               training_context->>'algorithm' AS algorithm,
+               error_message, name
+        FROM model_runs
+        ORDER BY started_at DESC LIMIT 50
+      `),
+      db.query(`
+        SELECT id, 'scrape' AS type, 'completed' AS status,
+               created_at AS started_at, created_at AS completed_at,
+               market, month, year, scrape_type
+        FROM scrape_log
+        ORDER BY created_at DESC LIMIT 50
+      `),
+    ]);
+
+    const merged = [...mlOps, ...scrapeOps]
+      .sort((a, b) => new Date(b.started_at) - new Date(a.started_at))
+      .slice(0, 100);
+
+    res.json(merged);
+  } catch (err) {
+    console.error("[ml/ops-log] Error:", err.message);
+    res.status(500).json({ error: "Failed to fetch ops log" });
+  }
+});
+
 module.exports = router;
