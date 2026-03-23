@@ -156,8 +156,8 @@ function JobConsole({ selectedId, setSelectedId, jobs = [], onClear }) {
     : "Ready";
 
   return (
-    <div className="flex flex-col h-full bg-white border border-plt-border overflow-hidden relative shadow-sm rounded-xl font-sans">
-      <Tabs defaultValue="live" className="flex flex-col h-full">
+    <div className="flex flex-col flex-1 bg-white border border-plt-border overflow-hidden relative shadow-sm rounded-xl font-sans">
+      <Tabs defaultValue="live" className="flex flex-col flex-1 min-h-0">
         {/* Console Header */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-plt-border bg-white flex-shrink-0">
           <div className="flex items-center gap-3">
@@ -275,8 +275,8 @@ function JobConsole({ selectedId, setSelectedId, jobs = [], onClear }) {
 
 function ControlCard({ onJob, models, fetchModels }) {
   return (
-    <div className="flex flex-col h-full bg-white border border-plt-border overflow-hidden relative shadow-sm rounded-xl font-sans">
-      <Tabs defaultValue="acquisition" className="flex flex-col h-full">
+    <div className="flex flex-col flex-1 bg-white border border-plt-border overflow-hidden relative shadow-sm rounded-xl font-sans">
+      <Tabs defaultValue="acquisition" className="flex flex-col flex-1 min-h-0">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-plt-border bg-white flex-shrink-0">
           <div className="flex items-center gap-3">
