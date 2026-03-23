@@ -103,7 +103,8 @@ export default function Dashboard() {
   }, []);
 
   const hasActiveFilters = useMemo(
-    () => filters.city !== "" || filters.zip !== "" || filters.min_roi !== "" || filters.max_year_built !== "" || filters.listing_type !== "for_sale" || filters.show_new_builds || !roiFilters.green || !roiFilters.yellow || !roiFilters.red || !roiFilters.gray,
+    () => filters.city !== "" || filters.zip !== "" || filters.min_roi !== "" || filters.max_year_built !== "" || filters.listing_type !== "for_sale" || filters.show_new_builds ||
+      Object.keys(INITIAL_ROI_FILTERS).some(k => roiFilters[k] !== INITIAL_ROI_FILTERS[k]),
     [filters, roiFilters]
   );
 
