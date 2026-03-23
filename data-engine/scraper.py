@@ -3,6 +3,7 @@ scraper.py — HomeHarvest MLS scraper.
 """
 
 import argparse
+import gc
 import logging
 import random
 import time
@@ -149,18 +150,30 @@ def scrape_sold_range(market_or_zip, start_ym, end_ym, throttle=None, dry_run=Fa
         if ok:
             upserted = 0
             if results is not None and not results.empty:
+                raw_count = len(results)
                 # Only skip IDs already stored as sold — not for_sale IDs
                 results = results[~results['mls_id'].astype(str).isin(sold_ids)]
+                after_dedup = len(results)
+                if raw_count != after_dedup:
+                    logger.info(f"[SKIP] Dedup: {raw_count} raw → {after_dedup} new (skipped {raw_count - after_dedup} known IDs)")
 
                 if not results.empty:
                     results = _filter_to_zips(results, target_zips)
+                    logger.info(f"[DATA] After ZIP filter: {len(results)} rows")
                     cleaned = clean(results)
+                    del results; gc.collect()
                     if not cleaned.empty:
                         if not dry_run:
                             records = normalize_for_db(cleaned)
+                            del cleaned; gc.collect()
                             upserted = db.upsert_properties(records, "sold")
                             total_upserted += upserted
                             sold_ids.update(str(r["mls_id"]) for r in records)
+                            del records; gc.collect()
+                    else:
+                        del cleaned
+                else:
+                    del results
 
                 if upserted > 0:
                     logger.info(f"[LOAD] Saved {upserted} new listings — {location}, {month_label}")

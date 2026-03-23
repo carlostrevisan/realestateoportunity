@@ -10,6 +10,7 @@ All rules defined in CLAUDE.md:
 """
 
 import logging
+import re
 import pandas as pd
 
 logger = logging.getLogger(__name__)
@@ -20,6 +21,9 @@ MIN_PRICE = 100_000
 MAX_PRICE = 5_000_000
 MIN_YEAR_BUILT = 1901
 MAX_SQFT = 5_000
+
+# Pre-compiled — avoids recompiling for every row in the Series
+_TYPE_RE = re.compile(r"SINGLE.FAMILY|SINGLE_FAMILY", re.IGNORECASE)
 
 
 def clean(df: pd.DataFrame) -> pd.DataFrame:
@@ -45,47 +49,50 @@ def clean(df: pd.DataFrame) -> pd.DataFrame:
     # 1. Property type — Single Family only
     type_col = _find_col(df, ["style", "property_type", "home_type", "type"])
     if type_col:
-        mask = df[type_col].astype(str).str.upper().str.contains("SINGLE.FAMILY|SINGLE_FAMILY", regex=True, na=False)
-        df = df[mask]
-        logger.info(f"[DATA] After type filter: {len(df)} rows (removed {original_count - len(df)})")
+        before = len(df)
+        df = df[df[type_col].astype(str).str.contains(_TYPE_RE, na=False)]
+        logger.info(f"[DATA] After type filter: {len(df)} rows (dropped {before - len(df)})")
     else:
         logger.warning("[WARN] No property_type column found — skipping type filter")
 
     # 2. Price filter ($100k – $5M)
     price_col = _find_col(df, ["list_price", "price", "sold_price"])
     if price_col:
-        df = df[
-            df[price_col].notna() &
-            (df[price_col] >= MIN_PRICE) &
-            (df[price_col] <= MAX_PRICE)
-        ]
-        logger.info(f"[DATA] After price filter: {len(df)} rows")
+        before = len(df)
+        prices = pd.to_numeric(df[price_col], errors="coerce")
+        logger.info(f"[DATA] Price range in data: ${prices.min():,.0f} – ${prices.max():,.0f} (median ${prices.median():,.0f})")
+        df = df[prices.notna() & (prices >= MIN_PRICE) & (prices <= MAX_PRICE)]
+        logger.info(f"[DATA] After price filter: {len(df)} rows (dropped {before - len(df)})")
 
     # 3. Year built > 1901
     year_col = _find_col(df, ["year_built", "yearbuilt"])
     if year_col:
-        df = df[
-            df[year_col].notna() &
-            (df[year_col] > MIN_YEAR_BUILT)
-        ]
-        logger.info(f"[DATA] After year filter: {len(df)} rows")
+        before = len(df)
+        years = pd.to_numeric(df[year_col], errors="coerce")
+        logger.info(f"[DATA] Year built range in data: {years.min():.0f} – {years.max():.0f}")
+        df = df[years.notna() & (years > MIN_YEAR_BUILT)]
+        logger.info(f"[DATA] After year filter: {len(df)} rows (dropped {before - len(df)})")
 
     # 4. Square footage < 5,000
     sqft_col = _find_col(df, ["sqft", "square_feet", "living_sqft", "lot_sqft"])
     if sqft_col:
-        df = df[
-            df[sqft_col].notna() &
-            (df[sqft_col] < MAX_SQFT) &
-            (df[sqft_col] > 0)
-        ]
-        logger.info(f"[DATA] After sqft filter: {len(df)} rows")
+        before = len(df)
+        sqfts = pd.to_numeric(df[sqft_col], errors="coerce")
+        logger.info(f"[DATA] Sqft range in data: {sqfts.min():.0f} – {sqfts.max():.0f} (median {sqfts.median():.0f})")
+        df = df[sqfts.notna() & (sqfts < MAX_SQFT) & (sqfts > 0)]
+        logger.info(f"[DATA] After sqft filter: {len(df)} rows (dropped {before - len(df)})")
 
     # 5. Coordinates must be non-null
     lat_col = _find_col(df, ["latitude", "lat"])
     lng_col = _find_col(df, ["longitude", "lng", "lon"])
     if lat_col and lng_col:
+        before = len(df)
+        null_lat = df[lat_col].isna().sum()
+        null_lng = df[lng_col].isna().sum()
+        if null_lat or null_lng:
+            logger.info(f"[DATA] Null coords — lat: {null_lat}, lng: {null_lng}")
         df = df[df[lat_col].notna() & df[lng_col].notna()]
-        logger.info(f"[DATA] After coordinates filter: {len(df)} rows")
+        logger.info(f"[DATA] After coords filter: {len(df)} rows (dropped {before - len(df)})")
     else:
         logger.warning("[WARN] lat/lng columns not found — keeping all rows")
 
@@ -101,6 +108,7 @@ def normalize_for_db(df: pd.DataFrame, default_zip: str = None) -> list[dict]:
 
     Maps HomeHarvest column names to our schema column names.
     """
+    logger.info(f"[DATA] Normalizing {len(df)} rows for DB insert...")
     zip_col = _find_col(df, ["zip_code", "postal_code", "zip"])
 
     col_map = {
@@ -138,7 +146,12 @@ def normalize_for_db(df: pd.DataFrame, default_zip: str = None) -> list[dict]:
         out['mls_id'] = out['mls_id'].where(out['mls_id'].isna(), out['mls_id'].astype(str))
 
     # Replace NaN → None for DB compatibility
-    return out.where(out.notna(), other=None).to_dict('records')
+    records = out.where(out.notna(), other=None).to_dict('records')
+    missing_mls = sum(1 for r in records if not r.get('mls_id'))
+    if missing_mls:
+        logger.warning(f"[WARN] {missing_mls}/{len(records)} rows have no mls_id — they will be skipped on upsert")
+    logger.info(f"[DATA] Normalized {len(records)} records ready for upsert")
+    return records
 
 
 def _find_col(df: pd.DataFrame, candidates: list[str]) -> str | None:

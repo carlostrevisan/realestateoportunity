@@ -3,10 +3,12 @@ ml_model.py — XGBoost training and scoring logic + Weighted Scoring + Geospati
 """
 
 import argparse
+import gc
 import json
 import joblib
 import logging
 import os
+import time
 from datetime import datetime
 
 import pandas as pd
@@ -36,18 +38,18 @@ def haversine_distance(lat1, lon1, lat2, lon2):
     a = np.sin(dphi/2)**2 + np.cos(phi1)*np.cos(phi2)*np.sin(dlambda/2)**2
     return 2 * R * np.arctan2(np.sqrt(a), np.sqrt(1-a))
 
-def calculate_geospatial_features(df, reference_df):
+def calculate_geospatial_features(df, reference_df, batch_size=50):
     """
-    For each row in df, find new builds in reference_df within 0.5 miles 
+    For each row in df, find new builds in reference_df within 0.5 miles
     and calculate their average sold price per sqft.
+    Processes in batches with a bounding-box pre-filter to keep RAM low.
     """
-    logger.info(f"[EXEC] Calculating 0.5-mile radius features for {len(df)} properties...")
-    
-    # Ensure we have price_per_sqft in reference
+    logger.info(f"[EXEC] Calculating 0.5-mile radius features for {len(df)} properties (batch_size={batch_size})...")
+
     ref = reference_df.copy()
     ref['price_sqft'] = ref['sold_price'] / ref['sqft']
     ref = ref[ref['price_sqft'].notna() & np.isfinite(ref['price_sqft'])]
-    
+
     if ref.empty:
         logger.warning("[SKIP] No valid reference data for geospatial features. Using 0.")
         return np.zeros(len(df))
@@ -64,24 +66,59 @@ def calculate_geospatial_features(df, reference_df):
     df_zips = df['zip'].astype(str).values
     has_coords = ~(np.isnan(df_lats) | np.isnan(df_lngs))
 
-    # Broadcast: (n_df, 1) × (1, n_ref) → (n_df, n_ref) distance matrix
-    safe_lats = np.where(has_coords, df_lats, 0.0)[:, None]
-    safe_lngs = np.where(has_coords, df_lngs, 0.0)[:, None]
-    dist_matrix = haversine_distance(safe_lats, safe_lngs, ref_lats[None, :], ref_lngs[None, :])
-
-    nearby = (dist_matrix <= 0.5) & (df_ids[:, None] != ref_ids[None, :])
-    nearby[~has_coords] = False
-
-    counts    = nearby.sum(axis=1)
-    price_sum = (ref_prices[None, :] * nearby).sum(axis=1)
-    has_nearby = counts > 0
-
-    global_avg = float(ref_prices.mean())
-    zip_avgs   = {z: float(ref_prices[ref_zips == z].mean()) for z in np.unique(ref_zips)}
+    global_avg   = float(ref_prices.mean())
+    zip_avgs     = {z: float(ref_prices[ref_zips == z].mean()) for z in np.unique(ref_zips)}
     zip_fallback = np.array([zip_avgs.get(z, global_avg) for z in df_zips])
 
-    result = np.where(has_nearby, price_sum / np.where(has_nearby, counts, 1), zip_fallback)
-    result[~has_coords] = 0.0
+    # 0.5 miles ≈ 0.0072° lat, 0.0083° lng at Florida latitudes — use 0.015° margin
+    BBOX_MARGIN = 0.015
+
+    result = np.where(has_coords, zip_fallback, 0.0)  # default to zip avg
+
+    for start in range(0, len(df), batch_size):
+        end = min(start + batch_size, len(df))
+        b_lats = df_lats[start:end]
+        b_lngs = df_lngs[start:end]
+        b_ids  = df_ids[start:end]
+        b_has  = has_coords[start:end]
+
+        if not b_has.any():
+            continue
+
+        # Bounding-box pre-filter — shrinks ref dramatically before haversine
+        lat_min = np.nanmin(b_lats[b_has]) - BBOX_MARGIN
+        lat_max = np.nanmax(b_lats[b_has]) + BBOX_MARGIN
+        lng_min = np.nanmin(b_lngs[b_has]) - BBOX_MARGIN
+        lng_max = np.nanmax(b_lngs[b_has]) + BBOX_MARGIN
+        bbox_mask = (
+            (ref_lats >= lat_min) & (ref_lats <= lat_max) &
+            (ref_lngs >= lng_min) & (ref_lngs <= lng_max)
+        )
+        r_lats   = ref_lats[bbox_mask]
+        r_lngs   = ref_lngs[bbox_mask]
+        r_prices = ref_prices[bbox_mask]
+        r_ids    = ref_ids[bbox_mask]
+
+        if len(r_lats) == 0:
+            continue  # keep zip fallback for this batch
+
+        safe_lats = np.where(b_has, b_lats, 0.0)[:, None]
+        safe_lngs = np.where(b_has, b_lngs, 0.0)[:, None]
+        dist = haversine_distance(safe_lats, safe_lngs, r_lats[None, :], r_lngs[None, :])
+
+        nearby = (dist <= 0.5) & (b_ids[:, None] != r_ids[None, :])
+        nearby[~b_has] = False
+
+        counts    = nearby.sum(axis=1)
+        price_sum = (r_prices[None, :] * nearby).sum(axis=1)
+        has_nearby = counts > 0
+
+        result[start:end] = np.where(
+            has_nearby,
+            price_sum / np.where(has_nearby, counts, 1),
+            result[start:end],  # keep zip fallback if no nearby
+        )
+
     return result
 
 def sanity_check_data(df, stage="training"):
@@ -112,19 +149,21 @@ def sanity_check_data(df, stage="training"):
     logger.info("[PASS] Sanity check passed.")
     return True, ""
 
-def train_model(n_estimators=1000, max_depth=6, learning_rate=0.05, min_year_built=2015, test_split=0.2, algorithm="xgboost", alpha=1.0):
+def train_model(n_estimators=300, max_depth=4, learning_rate=0.05, min_year_built=2015, test_split=0.2, algorithm="xgboost", alpha=1.0):
     run_id = db.start_model_run("train")
     logger.info("[EXEC] Starting model training...")
 
     try:
         data = db.fetch_sold_for_training()
         df = pd.DataFrame(data)
-        
+        del data; gc.collect()  # free raw list — DataFrame is all we need
+        logger.info(f"[LOAD] Sold data: {len(df)} rows  RAM: {df.memory_usage(deep=True).sum() // 1024} KB")
+
         # Ensure coordinates are floats (DB returns Decimals which break NumPy)
         if not df.empty:
             df['lat'] = pd.to_numeric(df['lat'], errors='coerce')
             df['lng'] = pd.to_numeric(df['lng'], errors='coerce')
-        
+
         # 1. Sanity Check
         ok, error_msg = sanity_check_data(df, "training")
         if not ok:
@@ -140,7 +179,9 @@ def train_model(n_estimators=1000, max_depth=6, learning_rate=0.05, min_year_bui
             return
 
         # 3. Feature Engineering: 0.5-mile radius price/sqft
+        t0 = time.time()
         train_df['avg_new_build_price_sqft_05mi'] = calculate_geospatial_features(train_df, train_df)
+        logger.info(f"[LOAD] Geospatial features done in {time.time() - t0:.1f}s")
 
         # 4. Prepare X, y
         unique_zips = sorted(train_df['zip'].dropna().unique().tolist())
@@ -156,6 +197,7 @@ def train_model(n_estimators=1000, max_depth=6, learning_rate=0.05, min_year_bui
         y = train_df['sold_price']
 
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_split, random_state=42)
+        logger.info(f"[LOAD] Train/test split: {len(X_train)} train rows, {len(X_test)} test rows")
 
         # 5. Train
         if algorithm == "xgboost":
@@ -166,23 +208,27 @@ def train_model(n_estimators=1000, max_depth=6, learning_rate=0.05, min_year_bui
                 max_depth=max_depth,
                 subsample=0.8,
                 colsample_bytree=0.8,
-                random_state=42
+                random_state=42,
+                nthread=1,
             )
         elif algorithm == "random_forest":
             from sklearn.ensemble import RandomForestRegressor
-            model = RandomForestRegressor(n_estimators=n_estimators, max_depth=max_depth, random_state=42, n_jobs=-1)
+            model = RandomForestRegressor(n_estimators=n_estimators, max_depth=max_depth, random_state=42, n_jobs=1)
         elif algorithm == "ridge":
             from sklearn.linear_model import Ridge
             model = Ridge(alpha=alpha)
         elif algorithm == "lightgbm":
             import lightgbm as lgb
-            model = lgb.LGBMRegressor(n_estimators=n_estimators, max_depth=max_depth, learning_rate=learning_rate, random_state=42, verbose=-1)
+            model = lgb.LGBMRegressor(n_estimators=n_estimators, max_depth=max_depth, learning_rate=learning_rate, random_state=42, verbose=-1, n_jobs=1)
         else:
             logger.error(f"[FAIL] Unknown algorithm: {algorithm}")
             db.fail_model_run(run_id, f"Unknown algorithm: {algorithm}")
             return
 
+        logger.info(f"[EXEC] Training {algorithm} ({n_estimators} estimators, depth {max_depth})...")
+        t0 = time.time()
         model.fit(X_train, y_train)
+        logger.info(f"[LOAD] Training done in {time.time() - t0:.1f}s")
 
         if algorithm == "ridge":
             coef = np.abs(model.coef_)
@@ -235,62 +281,108 @@ def train_model(n_estimators=1000, max_depth=6, learning_rate=0.05, min_year_bui
 def score_properties():
     run_id = db.start_model_run("score")
     try:
+        logger.info("[EXEC] Score job started")
+
         active = db.get_active_model()
         if not active:
-            logger.error("[FAIL] No active model found")
+            logger.error("[FAIL] No active model found in DB")
+            db.fail_model_run(run_id, "No active model found")
             return
-        
+
+        logger.info(f"[LOAD] Active model: id={active.get('id')} path={active.get('model_path')}")
+
         context = active.get("training_context")
-        if isinstance(context, str): context = json.loads(context)
+        if context is None:
+            logger.error("[FAIL] Active model has no training_context — run the UPDATE fix first")
+            db.fail_model_run(run_id, "training_context is NULL on active model")
+            return
+        if isinstance(context, str):
+            context = json.loads(context)
+        logger.info(f"[LOAD] training_context keys: {list(context.keys())}")
+
         zip_map = context.get("zip_map", {})
+        year_built_min = context.get("year_built_min", 2015)
+        algorithm = context.get("algorithm", "xgboost")
+        logger.info(f"[LOAD] algorithm={algorithm}  year_built_min={year_built_min}  zip_map entries={len(zip_map)}")
 
         # Load reference data for geospatial features
+        logger.info("[EXEC] Fetching sold data for geospatial reference...")
         sold_data = db.fetch_sold_for_training()
+        logger.info(f"[LOAD] Sold rows fetched: {len(sold_data)}")
         sold_df = pd.DataFrame(sold_data)
+        del sold_data; gc.collect()
         if not sold_df.empty:
             sold_df['lat'] = pd.to_numeric(sold_df['lat'], errors='coerce')
             sold_df['lng'] = pd.to_numeric(sold_df['lng'], errors='coerce')
-        
-        new_builds_ref = sold_df[sold_df['year_built'] >= context.get('year_built_min', 2015)]
+        logger.info(f"[LOAD] Sold DataFrame RAM: {sold_df.memory_usage(deep=True).sum() // 1024} KB")
 
+        new_builds_ref = sold_df[sold_df['year_built'] >= year_built_min]
+        logger.info(f"[LOAD] New-build reference rows (yr >= {year_built_min}): {len(new_builds_ref)}")
+
+        logger.info("[EXEC] Fetching for-sale candidates for scoring...")
         candidates = db.fetch_for_sale_for_scoring()
         if not candidates:
+            logger.info("[LOAD] No for-sale candidates found — nothing to score")
             db.complete_model_run(run_id, properties_scored=0)
             return
+        logger.info(f"[LOAD] Candidates to score: {len(candidates)}")
 
         df = pd.DataFrame(candidates)
+        del candidates; gc.collect()
         if not df.empty:
             df['lat'] = pd.to_numeric(df['lat'], errors='coerce')
             df['lng'] = pd.to_numeric(df['lng'], errors='coerce')
-        
-        # Calculate geospatial feature for scoring
-        df['avg_new_build_price_sqft_05mi'] = calculate_geospatial_features(df, new_builds_ref)
-        # Compatibility: Provide the old feature name as well in case an older model is active
-        df['avg_new_build_price_sqft_1mi'] = df['avg_new_build_price_sqft_05mi']
+        logger.info(f"[LOAD] Candidates DataFrame RAM: {df.memory_usage(deep=True).sum() // 1024} KB")
 
-        algorithm = context.get("algorithm", "xgboost")
+        # Geospatial feature
+        logger.info("[EXEC] Computing 0.5-mile geospatial features...")
+        t0 = time.time()
+        df['avg_new_build_price_sqft_05mi'] = calculate_geospatial_features(df, new_builds_ref)
+        df['avg_new_build_price_sqft_1mi'] = df['avg_new_build_price_sqft_05mi']
+        logger.info(f"[LOAD] Geo features done in {time.time() - t0:.1f}s — non-null: {df['avg_new_build_price_sqft_05mi'].notna().sum()}/{len(df)}")
+        del sold_df; gc.collect()
+
+        # Load model
+        logger.info(f"[EXEC] Loading {algorithm} model from {active['model_path']}...")
         if algorithm == "xgboost":
             model = xgb.XGBRegressor()
             model.load_model(active["model_path"])
             try:
                 expected_features = model.get_booster().feature_names
+                logger.info(f"[LOAD] Model expects features: {expected_features}")
                 X = df[expected_features].copy() if expected_features else df[FEATURE_COLS].copy()
-            except:
+            except Exception as fe:
+                logger.warning(f"[SKIP] Could not read feature names ({fe}), falling back to FEATURE_COLS")
                 X = df[FEATURE_COLS].copy()
         else:
             model = joblib.load(active["model_path"])
             X = df[FEATURE_COLS].copy()
-        
+        logger.info(f"[LOAD] Feature matrix shape: {X.shape}  columns: {list(X.columns)}")
+
+        # Encode / coerce
         for col in X.columns:
             if col == 'zip':
+                before = X['zip'].nunique()
                 X['zip'] = X['zip'].map(zip_map).fillna(-1)
+                logger.info(f"[EXEC] ZIP encoded: {before} unique zips, {(X['zip'] == -1).sum()} unmapped (set to -1)")
             else:
                 X[col] = pd.to_numeric(X[col], errors='coerce').fillna(0)
-        
-        df['predicted_rebuild_value'] = model.predict(X).astype(int)
 
+        null_counts = X.isnull().sum()
+        if null_counts.any():
+            logger.warning(f"[SKIP] Nulls remaining in feature matrix after coercion: {null_counts[null_counts > 0].to_dict()}")
+
+        # Predict
+        logger.info(f"[EXEC] Running model.predict on {len(X)} rows...")
+        df['predicted_rebuild_value'] = model.predict(X).astype(int)
+        logger.info(f"[LOAD] Predictions done — min={df['predicted_rebuild_value'].min()}  max={df['predicted_rebuild_value'].max()}  mean={df['predicted_rebuild_value'].mean():.0f}")
+
+        # Score
         cost_per_sqft = df['construction_cost_per_sqft'].fillna(175.0).astype(float)
         opp = df['predicted_rebuild_value'] - (df['list_price'] + df['sqft'] * cost_per_sqft)
+        positive = (opp > 0).sum()
+        logger.info(f"[EXEC] Opportunity scores computed — positive: {positive}/{len(df)}")
+
         results = (
             df[['id', 'predicted_rebuild_value']]
             .assign(opportunity_result=opp.astype(int))
@@ -298,11 +390,15 @@ def score_properties():
             .to_dict('records')
         )
 
+        logger.info(f"[EXEC] Writing {len(results)} scores to DB...")
         db.write_opportunity_scores(results)
         db.complete_model_run(run_id, properties_scored=len(results))
+        logger.info(f"[LOAD] Scoring complete — {len(results)} properties scored")
 
     except Exception as e:
+        import traceback
         logger.error(f"[FAIL] Scoring failed: {str(e)}")
+        logger.error(f"[FAIL] Traceback:\n{traceback.format_exc()}")
         db.fail_model_run(run_id, str(e))
 
 def score_properties_weighted(weights: dict):

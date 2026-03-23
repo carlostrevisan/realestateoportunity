@@ -16,6 +16,7 @@ Routes:
   GET  /health        liveness check
 """
 
+import logging
 import os
 import sys
 import threading
@@ -27,6 +28,9 @@ from datetime import datetime, timezone
 from collections import OrderedDict
 
 from flask import Flask, jsonify, request
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s", datefmt="%H:%M:%S")
 
 app = Flask(__name__)
 
@@ -53,7 +57,8 @@ def _make_job(job_type: str, meta: dict = None) -> str:
         }
         # Evict oldest if over limit
         while len(_jobs) > MAX_JOBS:
-            _jobs.popitem(last=False)
+            evicted_id, _ = _jobs.popitem(last=False)
+            logger.info(f"[SKIP] Evicted old job {evicted_id} from memory (queue full)")
     return job_id
 
 
@@ -79,6 +84,7 @@ def _run_subprocess(job_id: str, cmd: list[str]):
         )
         
         _processes[job_id] = process
+        logger.info(f"[EXEC] Job {job_id} spawned PID {process.pid}: {' '.join(cmd)}")
 
         for line in iter(process.stdout.readline, ""):
             line = line.rstrip()
@@ -90,6 +96,7 @@ def _run_subprocess(job_id: str, cmd: list[str]):
 
         process.wait()
         rc = process.returncode
+        logger.info(f"[LOAD] Job {job_id} PID {process.pid} exited with code {rc}")
 
         with _lock:
             # If we manually killed it, status might already be set
