@@ -941,7 +941,7 @@ export default function Operations() {
   }, [fetchStatus, fetchModels]);
 
   return (
-    <div className="flex flex-col h-full bg-plt-bg text-plt-primary font-sans selection:bg-plt-accent selection:text-white">
+    <div className="flex flex-col h-full overflow-y-auto lg:overflow-hidden bg-plt-bg text-plt-primary font-sans selection:bg-plt-accent selection:text-white custom-scrollbar">
       {/* System HUD */}
       <div className="flex-shrink-0 px-4 sm:px-6 pt-4 pb-3">
         <HUD mlStatus={mlStatus} scrapeStatus={scrapeStatus} />
@@ -953,7 +953,7 @@ export default function Operations() {
       </div>
 
       {/* Main Workspace */}
-      <div className="flex-1 flex flex-col lg:flex-row overflow-y-auto lg:overflow-hidden px-4 sm:px-6 pb-6 pt-0 gap-5">
+      <div className="flex-1 flex flex-col lg:flex-row lg:overflow-hidden px-4 sm:px-6 pb-6 pt-0 gap-5 min-h-0">
         {/* Left Half: Tabbed control card */}
         <div className="flex-1 min-h-[360px] sm:min-h-[480px] lg:min-h-0 flex flex-col">
           <ControlCard onJob={setActiveJobId} models={models} fetchModels={fetchModels} />
