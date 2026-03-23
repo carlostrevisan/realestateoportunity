@@ -52,10 +52,8 @@ htmlcov/
 # Jupyter
 .ipynb_checkpoints/
 
-# ML model artifacts
-*.pkl
+# ML model artifacts (tracked so models can be deployed via git)
 *.joblib
-models/
 
 # CSV exports (generated)
 exports/
