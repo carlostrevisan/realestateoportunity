@@ -307,7 +307,13 @@ function ControlCard({ onJob, models, fetchModels }) {
                   Permanently clears all properties, ML models, and job history from the database.
                 </p>
                 <button
-                  onClick={() => window.confirm("This will permanently wipe all data. Continue?") && fetch(`${API}/api/scrape/reset`, { method: "POST" }).then(() => window.location.reload())}
+                  onClick={() => {
+                    const pwd = window.prompt("Enter password to wipe all data:");
+                    if (pwd === null) return;
+                    if (pwd !== "carlosishere") { window.alert("Incorrect password."); return; }
+                    if (!window.confirm("This will permanently wipe all data. Continue?")) return;
+                    fetch(`${API}/api/scrape/reset`, { method: "POST" }).then(() => window.location.reload());
+                  }}
                   className="w-full text-sm font-semibold bg-white text-plt-danger border border-plt-danger/30 hover:bg-plt-danger hover:text-white py-2.5 rounded-lg transition-all active:scale-[0.98]"
                 >
                   Wipe Database

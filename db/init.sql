@@ -54,7 +54,9 @@ CREATE TABLE IF NOT EXISTS model_runs (
     error_message       TEXT,               -- populated on failure
     model_path          VARCHAR(255),       -- path to saved model file (train runs only)
     training_context    JSONB,              -- metadata: markets, date range, features, hyperparams
-    is_active           BOOLEAN DEFAULT FALSE  -- which model is currently used for scoring
+    is_active           BOOLEAN DEFAULT FALSE,  -- which model is currently used for scoring
+    name                VARCHAR(255),       -- user-assigned label
+    description         TEXT                -- user-assigned notes
 );
 
 CREATE INDEX IF NOT EXISTS idx_properties_zip

@@ -1,40 +1,48 @@
-# Development overrides — adds bind mounts for hot reload
+# Local development — builds from source with hot reload
 # Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml up
 
 services:
+  db:
+    ports:
+      - "5432:5432"
+
+  data-worker:
+    build:
+      context: ./data-engine
+      dockerfile: Dockerfile
+      target: development
+    volumes:
+      - ./data-engine:/app
+
   backend:
     build:
       context: ./server
+      dockerfile: Dockerfile
       target: development
+    ports:
+      - "4000:4000"
     environment:
       NODE_ENV: development
     volumes:
-      # Bind mount source for nodemon hot reload
       - ./server:/app
-      # Prevent overwriting container's node_modules with host's
       - /app/node_modules
     command: npm run dev
 
   frontend:
     build:
       context: ./client
+      dockerfile: Dockerfile
       target: development
+    ports:
+      - "3000:3000"
     environment:
       NODE_ENV: development
       VITE_API_URL: http://backend:4000
     volumes:
-      # Bind mount source for Vite HMR
       - ./client:/app
       - /app/node_modules
     command: npm run dev -- --host 0.0.0.0
 
-  data-worker:
-    build:
-      context: ./data-engine
-      target: development
-    volumes:
-      # Bind mount source for live Python editing
-      - ./data-engine:/app
-    environment:
-      PYTHONDONTWRITEBYTECODE: "1"
-      PYTHONUNBUFFERED: "1"
+  caddy:
+    entrypoint: ["sh", "-c", "sleep infinity"]
+    # Caddy disabled locally — access the app at http://localhost:3000

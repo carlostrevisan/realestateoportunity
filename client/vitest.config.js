@@ -1,4 +1,4 @@
-import { defineConfig } from "vitest/config";
+import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
 
@@ -7,19 +7,20 @@ export default defineConfig({
   resolve: {
     alias: { "@": path.resolve(path.dirname(new URL(import.meta.url).pathname), "./src") },
   },
-  test: {
-    environment: "happy-dom",
-    globals: true,
-    setupFiles: ["./src/test/setup.js"],
-    // Alias leaflet to a manual mock to avoid canvas/DOM errors in happy-dom
-    alias: {
-      leaflet: new URL("./src/__mocks__/leaflet.js", import.meta.url).pathname,
+  server: {
+    port: 3000,
+    host: "0.0.0.0",
+    allowedHosts: true,
+    proxy: {
+      // In dev mode, proxy /api calls to Express backend
+      "/api": {
+        target: process.env.VITE_API_URL || "http://localhost:4000",
+        changeOrigin: true,
+      },
     },
-    coverage: {
-      provider: "v8",
-      reporter: ["text", "lcov"],
-      include: ["src/**/*.{js,jsx}"],
-      exclude: ["src/test/**", "src/__mocks__/**", "src/main.jsx"],
-    },
+  },
+  build: {
+    outDir: "dist",
+    sourcemap: false,
   },
 });
