@@ -114,7 +114,7 @@ export default function Dashboard() {
       <div className="bg-white/90 backdrop-blur-sm border-b border-plt-border px-4 py-3 flex flex-col gap-4 flex-shrink-0 z-10 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-4">
           {/* Main Filters */}
-          <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+          <div className="flex flex-wrap items-center gap-x-3 sm:gap-x-6 gap-y-3">
             <div className="flex flex-col gap-1.5">
               <label className="text-[9px] uppercase font-bold text-plt-muted tracking-widest flex items-center gap-1.5">
                 <div className="w-1 h-1 bg-plt-accent rounded-full" />
@@ -199,7 +199,7 @@ export default function Dashboard() {
           </div>
 
           {/* ROI Toggles & Actions */}
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-3 sm:gap-6">
             {hasActiveFilters && (
               <button
                 onClick={clearFilters}

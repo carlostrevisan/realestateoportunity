@@ -159,7 +159,7 @@ function JobConsole({ selectedId, setSelectedId, jobs = [], onClear }) {
     <div className="flex flex-col flex-1 bg-white border border-plt-border overflow-hidden relative shadow-sm rounded-xl font-sans">
       <Tabs defaultValue="live" className="flex flex-col flex-1 min-h-0">
         {/* Console Header */}
-        <div className="flex items-center justify-between px-5 py-3 border-b border-plt-border bg-white flex-shrink-0">
+        <div className="flex items-center justify-between px-3 sm:px-5 py-3 border-b border-plt-border bg-white flex-shrink-0">
           <div className="flex items-center gap-3">
             <StatusDot status={selectedJob?.status || "idle"} />
             <div className="flex flex-col">
@@ -587,7 +587,7 @@ function IngestionControls({ onJob }) {
 
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <Label>Market</Label>
           <div className="space-y-2">
@@ -955,12 +955,12 @@ export default function Operations() {
       {/* Main Workspace */}
       <div className="flex-1 flex flex-col lg:flex-row overflow-y-auto lg:overflow-hidden px-4 sm:px-6 pb-6 pt-0 gap-5">
         {/* Left Half: Tabbed control card */}
-        <div className="flex-1 min-h-[480px] lg:min-h-0 flex flex-col">
+        <div className="flex-1 min-h-[360px] sm:min-h-[480px] lg:min-h-0 flex flex-col">
           <ControlCard onJob={setActiveJobId} models={models} fetchModels={fetchModels} />
         </div>
 
         {/* Right Half: Telemetry */}
-        <div className="flex-1 min-h-[480px] lg:min-h-0 flex flex-col">
+        <div className="flex-1 min-h-[360px] sm:min-h-[480px] lg:min-h-0 flex flex-col">
           <JobConsole
             selectedId={activeJobId}
             setSelectedId={setActiveJobId}

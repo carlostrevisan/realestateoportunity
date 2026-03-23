@@ -318,7 +318,7 @@ export default function OpportunityMap({ filters, roiFilters, onSelectProperty, 
 
   return (
     <div className="w-full h-full relative bg-plt-bg overflow-hidden flex flex-col">
-      <div className="absolute top-4 left-4 right-4 z-[1000] flex items-center justify-between pointer-events-none">
+      <div className={`absolute top-4 left-4 right-4 z-[1000] items-center justify-between pointer-events-none ${selectedId ? 'hidden md:flex' : 'flex'}`}>
         <div className="flex gap-2 pointer-events-auto">
           <div className="bg-white/90 backdrop-blur-md border border-plt-border/60 px-4 py-2 rounded-lg shadow-md text-[10px] font-bold uppercase tracking-widest flex items-center gap-2">
             <div className={`w-2 h-2 rounded-full ${loading ? 'bg-plt-accent animate-pulse' : 'bg-plt-accent'}`} />
