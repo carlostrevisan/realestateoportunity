@@ -230,10 +230,10 @@ function JobConsole({ selectedId, setSelectedId, jobs = [], onClear }) {
           {/* Log View */}
           <div
             ref={scrollRef}
-            className="flex-1 overflow-y-auto px-6 py-5 text-[11px] leading-relaxed bg-slate-50 custom-scrollbar selection:bg-plt-accent selection:text-white font-sans"
+            className="flex-1 min-h-0 overflow-y-auto relative px-6 py-5 text-[11px] leading-relaxed bg-slate-50 custom-scrollbar selection:bg-plt-accent selection:text-white font-sans"
           >
             {!selectedJob && (
-              <div className="h-full flex flex-col items-center justify-center text-center py-20 opacity-50">
+              <div className="absolute inset-0 flex flex-col items-center justify-center text-center opacity-50">
                 <div className="w-10 h-10 mb-4 rounded-full border-2 border-dashed border-slate-300 flex items-center justify-center">
                   <div className="w-2 h-2 bg-plt-accent rounded-full animate-ping" />
                 </div>
@@ -366,9 +366,12 @@ const PILL_COLOR = {
 };
 
 const BAR_FILL = {
-  red:    "#ef4444",
-  yellow: "#f59e0b",
-  green:  "#22c55e",
+  "<$0":       "#ef4444",
+  "$0–50k":    "#f97316",
+  "$50–100k":  "#f59e0b",
+  "$100–200k": "#84cc16",
+  "$200–500k": "#22c55e",
+  ">$500k":    "#10b981",
 };
 
 const CHART_CONFIG = { count: { label: "Properties" } };
@@ -426,8 +429,8 @@ function ResultsChart({ refreshKey }) {
           <Pill label="Avg"              value={avgK} />
         </div>
       </div>
-      <ChartContainer config={CHART_CONFIG} className="h-[180px] w-full">
-        <BarChart layout="vertical" data={data.distribution.filter(b => b.color !== "red")} margin={{ top: 0, right: 24, left: 4, bottom: 0 }}>
+      <ChartContainer config={CHART_CONFIG} className="h-[220px] w-full">
+        <BarChart layout="vertical" data={data.distribution} margin={{ top: 0, right: 24, left: 4, bottom: 0 }}>
           <CartesianGrid horizontal={false} strokeDasharray="3 3" stroke="#f1f5f9" />
           <XAxis
             type="number"
@@ -449,8 +452,8 @@ function ResultsChart({ refreshKey }) {
             content={<ChartTooltipContent hideLabel />}
           />
           <Bar dataKey="count" radius={[0, 4, 4, 0]} maxBarSize={18}>
-            {data.distribution.filter(b => b.color !== "red").map(b => (
-              <Cell key={b.label} fill={BAR_FILL[b.color]} />
+            {data.distribution.map(b => (
+              <Cell key={b.label} fill={BAR_FILL[b.label] ?? "#94a3b8"} />
             ))}
           </Bar>
         </BarChart>
