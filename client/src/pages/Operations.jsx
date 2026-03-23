@@ -63,7 +63,7 @@ function OpsHistory() {
 
   if (ops.length === 0) {
     return (
-      <div className="h-full flex flex-col items-center justify-center text-center py-20 opacity-50">
+      <div className="flex-1 flex flex-col items-center justify-center text-center py-20 opacity-50">
         <span className="text-slate-400 text-xs font-medium">No completed operations yet</span>
       </div>
     );
@@ -204,7 +204,7 @@ function JobConsole({ selectedId, setSelectedId, jobs = [], onClear }) {
         </div>
 
         {/* Live tab */}
-        <TabsContent value="live" className="flex-1 flex flex-col overflow-hidden mt-0">
+        <TabsContent value="live" className="data-[state=active]:flex-1 data-[state=inactive]:hidden flex flex-col overflow-hidden mt-0">
           {/* Execution History Bar */}
           <div className="px-5 py-3 border-b border-plt-border bg-plt-bg/50 flex-shrink-0 min-w-0">
             <div className="text-[9px] font-bold uppercase tracking-widest text-plt-muted mb-2 flex items-center gap-2">
@@ -265,7 +265,7 @@ function JobConsole({ selectedId, setSelectedId, jobs = [], onClear }) {
         </TabsContent>
 
         {/* History tab — persistent DB-backed ops log */}
-        <TabsContent value="history" className="flex flex-col overflow-hidden mt-0 data-[state=active]:flex-1">
+        <TabsContent value="history" className="data-[state=active]:flex-1 data-[state=inactive]:hidden flex flex-col overflow-hidden mt-0">
           <OpsHistory />
         </TabsContent>
       </Tabs>
@@ -425,12 +425,11 @@ function ResultsChart({ refreshKey }) {
         <div className="flex gap-2 flex-wrap">
           <Pill label="High ROI >$200k"  value={data.totals.green}  color="green" />
           <Pill label="Moderate $0–200k" value={data.totals.yellow} color="yellow" />
-          <Pill label="Negative ROI"     value={data.totals.red}    color="red" />
           <Pill label="Avg"              value={avgK} />
         </div>
       </div>
       <ChartContainer config={CHART_CONFIG} className="h-[220px] w-full">
-        <BarChart layout="vertical" data={data.distribution} margin={{ top: 0, right: 24, left: 4, bottom: 0 }}>
+        <BarChart layout="vertical" data={data.distribution.filter(b => b.label !== "<$0")} margin={{ top: 0, right: 24, left: 4, bottom: 0 }}>
           <CartesianGrid horizontal={false} strokeDasharray="3 3" stroke="#f1f5f9" />
           <XAxis
             type="number"
@@ -890,11 +889,10 @@ function IntelControls({ onJob, models, fetchModels }) {
       </div>
 
       {/* Scoring actions */}
-      <div className="grid grid-cols-2 gap-3 pt-2 border-t border-plt-border/50">
-        <Btn onClick={() => trigger("score")} disabled={running.score || !activeModel} variant="outline">
+      <div className="pt-2 border-t border-plt-border/50">
+        <Btn onClick={() => trigger("score")} disabled={running.score || !activeModel} variant="primary">
           {running.score ? "Scoring..." : "ML Score"}
         </Btn>
-        <Btn variant="ghost" onClick={() => setShowWeightedScoringModal(true)}>Weighted Algorithm</Btn>
       </div>
 
       <WeightedScoringModal
