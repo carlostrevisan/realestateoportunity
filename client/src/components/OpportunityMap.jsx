@@ -32,6 +32,8 @@ export default function OpportunityMap({ filters, roiFilters, onSelectProperty, 
   const [geojson, setGeojson] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [mapReady, setMapReady] = useState(false);
+  const prevSelectedIdRef = useRef(null);
 
   // 1. Initialize Map
   useEffect(() => {
@@ -55,6 +57,7 @@ export default function OpportunityMap({ filters, roiFilters, onSelectProperty, 
       comparablesLayer.current.addTo(map);
       newBuildsLayer.current.addTo(map);
       mapInstance.current = map;
+      setMapReady(true);
 
       // Assertive Light Tactical Tiles
       L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png", {
@@ -177,16 +180,21 @@ export default function OpportunityMap({ filters, roiFilters, onSelectProperty, 
       marker.on('click', (e) => {
         L.DomEvent.stopPropagation(e);
         if (onSelectProperty) onSelectProperty(p);
-        map.setView(e.target.getLatLng(), Math.max(map.getZoom(), 15));
+        if (window.innerWidth >= 768) {
+          map.setView(e.target.getLatLng(), Math.max(map.getZoom(), 15));
+        }
       });
       marker.addTo(layer);
     });
 
-    if (validCoords.length > 0 && !selectedId) {
+    const wasDeselecting = prevSelectedIdRef.current !== null && !selectedId;
+    prevSelectedIdRef.current = selectedId;
+
+    if (validCoords.length > 0 && !selectedId && !wasDeselecting) {
       const bounds = L.latLngBounds(validCoords);
       map.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
     }
-  }, [geojson, roiFilters, selectedId]);
+  }, [geojson, roiFilters, selectedId, mapReady]);
 
   // 4. Pan to focusCoord
   useEffect(() => {
