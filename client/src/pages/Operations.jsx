@@ -265,7 +265,7 @@ function JobConsole({ selectedId, setSelectedId, jobs = [], onClear }) {
         </TabsContent>
 
         {/* History tab — persistent DB-backed ops log */}
-        <TabsContent value="history" className="flex-1 flex flex-col overflow-hidden mt-0">
+        <TabsContent value="history" className="flex flex-col overflow-hidden mt-0 data-[state=active]:flex-1">
           <OpsHistory />
         </TabsContent>
       </Tabs>
