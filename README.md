@@ -14,18 +14,6 @@ A full-stack investment analysis tool that identifies **Buy, Demolish, Rebuild**
 - Exports filtered results to CSV
 
 ---
-
-## Target Markets
-
-| City | ZIP Codes |
-|------|-----------|
-| Tampa | 33606, 33629, 33611 |
-| Orlando | 32803, 32806 |
-| Winter Garden | 34787 |
-| Winter Park | 32789, 32792 |
-
----
-
 ## Tech Stack
 
 | Layer | Technology |
