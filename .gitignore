@@ -64,3 +64,6 @@ exports/
 # Ruff / mypy
 .mypy_cache/
 .ruff_cache/
+
+# AI assistant config
+.claude/
