@@ -967,12 +967,12 @@ export default function Operations() {
       {/* Main Workspace */}
       <div className="flex-1 flex flex-col lg:flex-row lg:overflow-hidden px-4 sm:px-6 pb-6 pt-0 gap-5 min-h-0">
         {/* Left Half: Tabbed control card */}
-        <div className="flex-1 min-h-[360px] sm:min-h-[480px] lg:min-h-0 flex flex-col">
+        <div className="flex-1 min-w-0 min-h-[360px] sm:min-h-[480px] lg:min-h-0 flex flex-col">
           <ControlCard onJob={setActiveJobId} models={models} fetchModels={fetchModels} />
         </div>
 
         {/* Right Half: Telemetry */}
-        <div className="flex-1 min-h-[360px] sm:min-h-[480px] lg:min-h-0 flex flex-col">
+        <div className="flex-1 min-w-0 min-h-[360px] sm:min-h-[480px] lg:min-h-0 flex flex-col">
           <JobConsole
             selectedId={activeJobId}
             setSelectedId={setActiveJobId}
