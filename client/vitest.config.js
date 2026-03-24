@@ -23,4 +23,9 @@ export default defineConfig({
     outDir: "dist",
     sourcemap: false,
   },
+  test: {
+    environment: "happy-dom",
+    globals: true,
+    setupFiles: ["./src/test/setup.js"],
+  },
 });

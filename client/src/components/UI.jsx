@@ -38,6 +38,18 @@ export function StatusDot({ status }) {
   );
 }
 
+export function Panel({ title, tag, children }) {
+  return (
+    <div className="bg-white border border-plt-border rounded-xl shadow-sm font-sans">
+      <div className="flex items-center gap-2 px-5 py-3 border-b border-plt-border">
+        <span className="text-[9px] font-bold uppercase tracking-widest text-plt-muted">{title}</span>
+        {tag && <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-plt-bg text-plt-muted border border-plt-border">{tag}</span>}
+      </div>
+      <div className="p-5">{children}</div>
+    </div>
+  );
+}
+
 // Btn — shadcn Button wrapper with variant mapping + data-variant for testability
 const VARIANT_MAP = {
   primary: "default",

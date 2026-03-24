@@ -15,9 +15,8 @@ from unittest.mock import MagicMock
 # ── 1. Provide a dummy DATABASE_URL ────────────────────────────────────────
 os.environ.setdefault("DATABASE_URL", "postgresql://test:test@localhost/realestate_test")
 
-# ── 2. Stub psycopg2 + psycopg2.extras if they are not installed ───────────
-# This allows db.py to be imported without psycopg2 being present on the host.
-# Individual tests then patch psycopg2.connect() to control return values.
+# ── 2. Stub psycopg2 + psycopg2.extras + xgboost + lightgbm if they are not installed ───────────
+# This allows db.py and ml_model.py to be imported without these being present or functional.
 if "psycopg2" not in sys.modules:
     mock_psycopg2 = MagicMock()
     mock_psycopg2.extras = MagicMock()
@@ -25,6 +24,14 @@ if "psycopg2" not in sys.modules:
     mock_psycopg2.extras.execute_batch = MagicMock()
     sys.modules["psycopg2"] = mock_psycopg2
     sys.modules["psycopg2.extras"] = mock_psycopg2.extras
+
+if "xgboost" not in sys.modules or os.environ.get("STUB_ML"):
+    mock_xgb = MagicMock()
+    mock_xgb.XGBRegressor = MagicMock()
+    sys.modules["xgboost"] = mock_xgb
+
+if "lightgbm" not in sys.modules or os.environ.get("STUB_ML"):
+    sys.modules["lightgbm"] = MagicMock()
 
 # ── 3. Ensure the data-engine source directory is on the path ───────────────
 _engine_dir = os.path.dirname(os.path.dirname(__file__))

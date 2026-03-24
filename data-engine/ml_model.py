@@ -8,6 +8,7 @@ import json
 import joblib
 import logging
 import os
+import traceback
 import time
 from datetime import datetime
 
@@ -21,6 +22,12 @@ import db
 
 # Updated feature set
 FEATURE_COLS = ['sqft', 'lot_sqft', 'year_built', 'median_household_income', 'zip', 'avg_new_build_price_sqft_05mi']
+
+# Module-level constants — replace magic numbers throughout
+NEARBY_RADIUS_MILES       = 0.5
+BBOX_MARGIN_DEGREES       = 0.015
+CONSTRUCTION_COST_DEFAULT = 175.0
+MIN_YEAR_BUILT_DEFAULT    = 2015
 
 logging.basicConfig(
     level=logging.INFO,
@@ -38,20 +45,72 @@ def haversine_distance(lat1, lon1, lat2, lon2):
     a = np.sin(dphi/2)**2 + np.cos(phi1)*np.cos(phi2)*np.sin(dlambda/2)**2
     return 2 * R * np.arctan2(np.sqrt(a), np.sqrt(1-a))
 
+def _coerce_coordinates(df: pd.DataFrame) -> None:
+    """Coerce lat/lng columns from Decimal (DB) to float64 in-place.
+
+    No-ops on an empty DataFrame. Unparseable values become NaN, which
+    callers already handle via has_coords / notna() checks.
+    """
+    if not df.empty:
+        df['lat'] = pd.to_numeric(df['lat'], errors='coerce')
+        df['lng'] = pd.to_numeric(df['lng'], errors='coerce')
+
+def _save_model(model, algorithm: str, run_id: int, timestamp: str) -> str:
+    """Persist a trained model to disk; return the file path.
+
+    Uses XGBoost's native JSON format for xgboost models;
+    falls back to joblib pickle for sklearn-compatible estimators.
+    """
+    os.makedirs("models", exist_ok=True)
+    if algorithm == "xgboost":
+        path = f"models/rebuild_{run_id}_{timestamp}.json"
+        model.save_model(path)
+    else:
+        path = f"models/rebuild_{run_id}_{timestamp}.pkl"
+        joblib.dump(model, path)
+    return path
+
+def _load_model(algorithm: str, model_path: str):
+    """Load a trained model from disk; return (model_object, feature_name_list).
+
+    For XGBoost, feature names are read from the booster itself so that models
+    saved without explicit metadata still work via FEATURE_COLS fallback.
+    For sklearn-compatible models the feature list is always FEATURE_COLS.
+    """
+    if algorithm == "xgboost":
+        model = xgb.XGBRegressor()
+        model.load_model(model_path)
+        try:
+            feature_names = model.get_booster().feature_names
+            logger.info(f"[LOAD] Model expects features: {feature_names}")
+            if not feature_names:
+                feature_names = FEATURE_COLS
+        except Exception as fe:
+            logger.warning(f"[SKIP] Could not read feature names ({fe}), falling back to FEATURE_COLS")
+            feature_names = FEATURE_COLS
+    else:
+        model = joblib.load(model_path)
+        feature_names = FEATURE_COLS
+    return model, feature_names
+
 def calculate_geospatial_features(df, reference_df, batch_size=50):
     """
-    For each row in df, find new builds in reference_df within 0.5 miles
+    For each row in df, find new builds in reference_df within NEARBY_RADIUS_MILES miles
     and calculate their average sold price per sqft.
     Processes in batches with a bounding-box pre-filter to keep RAM low.
     """
-    logger.info(f"[EXEC] Calculating 0.5-mile radius features for {len(df)} properties (batch_size={batch_size})...")
+    logger.info(f"[EXEC] Calculating {NEARBY_RADIUS_MILES}-mile radius features for {len(df)} properties (batch_size={batch_size})...")
 
     ref = reference_df.copy()
+    if ref.empty:
+        logger.warning("[SKIP] No valid reference data for geospatial features. Using 0.")
+        return np.zeros(len(df))
+
     ref['price_sqft'] = ref['sold_price'] / ref['sqft']
     ref = ref[ref['price_sqft'].notna() & np.isfinite(ref['price_sqft'])]
 
     if ref.empty:
-        logger.warning("[SKIP] No valid reference data for geospatial features. Using 0.")
+        logger.warning("[SKIP] No valid reference data for geospatial features (post-filter). Using 0.")
         return np.zeros(len(df))
 
     ref_lats   = ref['lat'].astype(float).values
@@ -70,8 +129,7 @@ def calculate_geospatial_features(df, reference_df, batch_size=50):
     zip_avgs     = {z: float(ref_prices[ref_zips == z].mean()) for z in np.unique(ref_zips)}
     zip_fallback = np.array([zip_avgs.get(z, global_avg) for z in df_zips])
 
-    # 0.5 miles ≈ 0.0072° lat, 0.0083° lng at Florida latitudes — use 0.015° margin
-    BBOX_MARGIN = 0.015
+    # NEARBY_RADIUS_MILES ≈ 0.0072° lat at Florida latitudes — BBOX_MARGIN_DEGREES gives buffer
 
     result = np.where(has_coords, zip_fallback, 0.0)  # default to zip avg
 
@@ -86,10 +144,10 @@ def calculate_geospatial_features(df, reference_df, batch_size=50):
             continue
 
         # Bounding-box pre-filter — shrinks ref dramatically before haversine
-        lat_min = np.nanmin(b_lats[b_has]) - BBOX_MARGIN
-        lat_max = np.nanmax(b_lats[b_has]) + BBOX_MARGIN
-        lng_min = np.nanmin(b_lngs[b_has]) - BBOX_MARGIN
-        lng_max = np.nanmax(b_lngs[b_has]) + BBOX_MARGIN
+        lat_min = np.nanmin(b_lats[b_has]) - BBOX_MARGIN_DEGREES
+        lat_max = np.nanmax(b_lats[b_has]) + BBOX_MARGIN_DEGREES
+        lng_min = np.nanmin(b_lngs[b_has]) - BBOX_MARGIN_DEGREES
+        lng_max = np.nanmax(b_lngs[b_has]) + BBOX_MARGIN_DEGREES
         bbox_mask = (
             (ref_lats >= lat_min) & (ref_lats <= lat_max) &
             (ref_lngs >= lng_min) & (ref_lngs <= lng_max)
@@ -106,7 +164,7 @@ def calculate_geospatial_features(df, reference_df, batch_size=50):
         safe_lngs = np.where(b_has, b_lngs, 0.0)[:, None]
         dist = haversine_distance(safe_lats, safe_lngs, r_lats[None, :], r_lngs[None, :])
 
-        nearby = (dist <= 0.5) & (b_ids[:, None] != r_ids[None, :])
+        nearby = (dist <= NEARBY_RADIUS_MILES) & (b_ids[:, None] != r_ids[None, :])
         nearby[~b_has] = False
 
         counts    = nearby.sum(axis=1)
@@ -125,15 +183,15 @@ def sanity_check_data(df, stage="training"):
     """Validates data quality before proceeding."""
     logger.info(f"[EXEC] Sanity Check: {stage} data...")
     errors = []
-    
+
     if len(df) < 10:
         errors.append(f"Insufficient records ({len(df)}). Need at least 10.")
-    
+
     # Check for coordinates
     null_coords = df['lat'].isna().sum() + df['lng'].isna().sum()
     if null_coords > len(df) * 0.5:
         errors.append(f"Too many missing coordinates ({null_coords} rows). Check scraper logs.")
-        
+
     # Check for price realism
     if stage == "training":
         if 'sold_price' in df.columns:
@@ -145,7 +203,7 @@ def sanity_check_data(df, stage="training"):
         msg = " | ".join(errors)
         logger.error(f"[FAIL] Sanity check failed: {msg}")
         return False, msg
-    
+
     logger.info("[PASS] Sanity check passed.")
     return True, ""
 
@@ -160,9 +218,7 @@ def train_model(n_estimators=300, max_depth=4, learning_rate=0.05, min_year_buil
         logger.info(f"[LOAD] Sold data: {len(df)} rows  RAM: {df.memory_usage(deep=True).sum() // 1024} KB")
 
         # Ensure coordinates are floats (DB returns Decimals which break NumPy)
-        if not df.empty:
-            df['lat'] = pd.to_numeric(df['lat'], errors='coerce')
-            df['lng'] = pd.to_numeric(df['lng'], errors='coerce')
+        _coerce_coordinates(df)
 
         # 1. Sanity Check
         ok, error_msg = sanity_check_data(df, "training")
@@ -241,14 +297,8 @@ def train_model(n_estimators=300, max_depth=4, learning_rate=0.05, min_year_buil
         r2 = r2_score(y_test, preds)
 
         # Save model
-        if not os.path.exists("models"): os.makedirs("models")
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        if algorithm == "xgboost":
-            model_path = f"models/rebuild_{run_id}_{timestamp}.json"
-            model.save_model(model_path)
-        else:
-            model_path = f"models/rebuild_{run_id}_{timestamp}.pkl"
-            joblib.dump(model, model_path)
+        timestamp  = datetime.now().strftime("%Y%m%d_%H%M%S")
+        model_path = _save_model(model, algorithm, run_id, timestamp)
 
         context = {
             "algorithm": algorithm,
@@ -311,9 +361,7 @@ def score_properties():
         logger.info(f"[LOAD] Sold rows fetched: {len(sold_data)}")
         sold_df = pd.DataFrame(sold_data)
         del sold_data; gc.collect()
-        if not sold_df.empty:
-            sold_df['lat'] = pd.to_numeric(sold_df['lat'], errors='coerce')
-            sold_df['lng'] = pd.to_numeric(sold_df['lng'], errors='coerce')
+        _coerce_coordinates(sold_df)
         logger.info(f"[LOAD] Sold DataFrame RAM: {sold_df.memory_usage(deep=True).sum() // 1024} KB")
 
         new_builds_ref = sold_df[sold_df['year_built'] >= year_built_min]
@@ -329,34 +377,20 @@ def score_properties():
 
         df = pd.DataFrame(candidates)
         del candidates; gc.collect()
-        if not df.empty:
-            df['lat'] = pd.to_numeric(df['lat'], errors='coerce')
-            df['lng'] = pd.to_numeric(df['lng'], errors='coerce')
+        _coerce_coordinates(df)
         logger.info(f"[LOAD] Candidates DataFrame RAM: {df.memory_usage(deep=True).sum() // 1024} KB")
 
         # Geospatial feature
         logger.info("[EXEC] Computing 0.5-mile geospatial features...")
         t0 = time.time()
         df['avg_new_build_price_sqft_05mi'] = calculate_geospatial_features(df, new_builds_ref)
-        df['avg_new_build_price_sqft_1mi'] = df['avg_new_build_price_sqft_05mi']
         logger.info(f"[LOAD] Geo features done in {time.time() - t0:.1f}s — non-null: {df['avg_new_build_price_sqft_05mi'].notna().sum()}/{len(df)}")
         del sold_df; gc.collect()
 
         # Load model
         logger.info(f"[EXEC] Loading {algorithm} model from {active['model_path']}...")
-        if algorithm == "xgboost":
-            model = xgb.XGBRegressor()
-            model.load_model(active["model_path"])
-            try:
-                expected_features = model.get_booster().feature_names
-                logger.info(f"[LOAD] Model expects features: {expected_features}")
-                X = df[expected_features].copy() if expected_features else df[FEATURE_COLS].copy()
-            except Exception as fe:
-                logger.warning(f"[SKIP] Could not read feature names ({fe}), falling back to FEATURE_COLS")
-                X = df[FEATURE_COLS].copy()
-        else:
-            model = joblib.load(active["model_path"])
-            X = df[FEATURE_COLS].copy()
+        model, feature_names = _load_model(algorithm, active["model_path"])
+        X = df[feature_names].copy()
         logger.info(f"[LOAD] Feature matrix shape: {X.shape}  columns: {list(X.columns)}")
 
         # Encode / coerce
@@ -378,7 +412,7 @@ def score_properties():
         logger.info(f"[LOAD] Predictions done — min={df['predicted_rebuild_value'].min()}  max={df['predicted_rebuild_value'].max()}  mean={df['predicted_rebuild_value'].mean():.0f}")
 
         # Score
-        cost_per_sqft = df['construction_cost_per_sqft'].fillna(175.0).astype(float)
+        cost_per_sqft = df['construction_cost_per_sqft'].fillna(CONSTRUCTION_COST_DEFAULT).astype(float)
         opp = df['predicted_rebuild_value'] - (df['list_price'] + df['sqft'] * cost_per_sqft)
         positive = (opp > 0).sum()
         logger.info(f"[EXEC] Opportunity scores computed — positive: {positive}/{len(df)}")
@@ -396,7 +430,6 @@ def score_properties():
         logger.info(f"[LOAD] Scoring complete — {len(results)} properties scored")
 
     except Exception as e:
-        import traceback
         logger.error(f"[FAIL] Scoring failed: {str(e)}")
         logger.error(f"[FAIL] Traceback:\n{traceback.format_exc()}")
         db.fail_model_run(run_id, str(e))
@@ -409,15 +442,13 @@ def score_properties_weighted(weights: dict):
             db.fail_model_run(run_id, "No sold data for reference")
             return
         sold_df = pd.DataFrame(sold_data)
-        if not sold_df.empty:
-            sold_df['lat'] = pd.to_numeric(sold_df['lat'], errors='coerce')
-            sold_df['lng'] = pd.to_numeric(sold_df['lng'], errors='coerce')
-        
-        new_builds_ref = sold_df[sold_df['year_built'] >= 2015]
-        
+        _coerce_coordinates(sold_df)
+
+        new_builds_ref = sold_df[sold_df['year_built'] >= MIN_YEAR_BUILT_DEFAULT]
+
         # Calculate geospatial feature for normalization range
         sold_df['avg_new_build_price_sqft_05mi'] = calculate_geospatial_features(sold_df, new_builds_ref)
-        
+
         zip_values = sold_df.groupby('zip')['sold_price'].mean().to_dict()
         global_mean_sold = sold_df['sold_price'].mean() or 0.0
 
@@ -425,7 +456,7 @@ def score_properties_weighted(weights: dict):
         for col in ['sqft', 'lot_sqft', 'year_built', 'median_household_income', 'avg_new_build_price_sqft_05mi']:
             c_min, c_max = sold_df[col].min(), sold_df[col].max()
             ranges[col] = {"min": float(c_min) if pd.notna(c_min) else 0.0, "max": float(c_max) if pd.notna(c_max) else 1.0}
-        
+
         zip_sold_prices = [v for v in zip_values.values() if pd.notna(v)]
         ranges['zip'] = {"min": float(min(zip_sold_prices) if zip_sold_prices else 0), "max": float(max(zip_sold_prices) if zip_sold_prices else 1)}
 
@@ -434,18 +465,16 @@ def score_properties_weighted(weights: dict):
             db.complete_model_run(run_id, properties_scored=0)
             return
         df = pd.DataFrame(candidates)
-        if not df.empty:
-            df['lat'] = pd.to_numeric(df['lat'], errors='coerce')
-            df['lng'] = pd.to_numeric(df['lng'], errors='coerce')
-        
+        _coerce_coordinates(df)
+
         df['avg_new_build_price_sqft_05mi'] = calculate_geospatial_features(df, new_builds_ref)
-        
+
         norm_df = pd.DataFrame(index=df.index)
         for col in ['sqft', 'lot_sqft', 'year_built', 'median_household_income', 'avg_new_build_price_sqft_05mi']:
             r_min, r_max = ranges[col]['min'], ranges[col]['max']
             span = max(1.0, r_max - r_min)
             norm_df[col] = (df[col].fillna(r_min) - r_min) / span
-        
+
         zip_price_series = df['zip'].map(zip_values).fillna(global_mean_sold)
         rz_min, rz_max = ranges['zip']['min'], ranges['zip']['max']
         rz_span = max(1.0, rz_max - rz_min)
@@ -460,10 +489,10 @@ def score_properties_weighted(weights: dict):
         if pd.isna(p10): p10 = global_mean_sold * 0.5
         if pd.isna(p90): p90 = global_mean_sold * 1.5
         price_range = max(100000.0, p90 - p10)
-        
+
         df['predicted_rebuild_value'] = (p10 + df['weighted_score'] * price_range).fillna(p10).astype(int)
 
-        cost_sqft = df['construction_cost_per_sqft'].fillna(175.0).astype(float)
+        cost_sqft = df['construction_cost_per_sqft'].fillna(CONSTRUCTION_COST_DEFAULT).astype(float)
         sqft_col  = df['sqft'].fillna(0.0).astype(float)
         acq_col   = df['list_price'].fillna(0.0).astype(float)
         opp       = df['predicted_rebuild_value'].astype(float) - (acq_col + sqft_col * cost_sqft)

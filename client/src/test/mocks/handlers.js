@@ -67,6 +67,7 @@ const ML_STATUS_FIXTURE = {
 const SCRAPE_STATUS_FIXTURE = {
   scrape_status: [
     { zip: "33606", listing_type: "for_sale", property_count: "45", last_scraped: "2026-03-11T00:00:00Z", earliest_sale: null, latest_sale: null },
+    { zip: "33606", listing_type: "sold", property_count: "342", last_scraped: "2026-03-11T00:00:00Z", earliest_sale: null, latest_sale: null },
   ],
 };
 
@@ -117,5 +118,22 @@ export const handlers = [
 
   http.get("/api/ml/models", () =>
     HttpResponse.json([])
+  ),
+
+  http.get("/api/ml/results", () =>
+    HttpResponse.json({
+      distribution: [
+        { label: "$0–50k", count: 10, color: "yellow" },
+        { label: "$200–500k", count: 5, color: "green" },
+      ],
+      totals: { green: 5, yellow: 10, red: 0, total: 15 },
+      avg_opportunity: 150000,
+    })
+  ),
+
+  http.get("/api/ml/ops-log", () =>
+    HttpResponse.json([
+      { id: 1, type: "train", status: "completed", started_at: new Date().toISOString() },
+    ])
   ),
 ];

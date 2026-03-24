@@ -9,13 +9,16 @@ const router = express.Router();
 router.get("/filters", async (req, res) => {
   const db = req.app.locals.db;
   try {
-    const { rows: [r] } = await db.query(`
-      SELECT
-        array_agg(DISTINCT city ORDER BY city) FILTER (WHERE city IS NOT NULL AND city != '') AS cities,
-        array_agg(DISTINCT zip  ORDER BY zip)  FILTER (WHERE zip  IS NOT NULL)               AS zips
-      FROM properties
-    `);
-    res.json({ cities: r.cities || [], zips: r.zips || [] });
+    const { rows: cityRows } = await db.query(
+      `SELECT DISTINCT city FROM properties WHERE city IS NOT NULL AND city != '' ORDER BY city`
+    );
+    const { rows: zipRows } = await db.query(
+      `SELECT DISTINCT zip FROM properties WHERE zip IS NOT NULL ORDER BY zip`
+    );
+    res.json({
+      cities: cityRows.map(r => r.city),
+      zips: zipRows.map(r => r.zip),
+    });
   } catch (err) {
     console.error("[filters] Query error:", err.message);
     res.status(500).json({ error: "Failed to fetch filters" });

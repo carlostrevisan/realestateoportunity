@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import OpportunityMap from "../components/OpportunityMap.jsx";
+import { formatCityName, buildZillowUrl } from "../lib/utils";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -94,14 +95,6 @@ export default function Dashboard() {
     setRoiFilters(INITIAL_ROI_FILTERS);
   }, []);
 
-  const handleSelectProperty = useCallback((prop) => {
-    setSelectedProp(prop);
-  }, []);
-
-  const handleSetFocusCoord = useCallback((coord) => {
-    setFocusCoord(coord);
-  }, []);
-
   const hasActiveFilters = useMemo(
     () => filters.city !== "" || filters.zip !== "" || filters.min_roi !== "" || filters.max_year_built !== "" || filters.listing_type !== "for_sale" || filters.show_new_builds ||
       Object.keys(INITIAL_ROI_FILTERS).some(k => roiFilters[k] !== INITIAL_ROI_FILTERS[k]),
@@ -144,7 +137,7 @@ export default function Dashboard() {
                 <SelectContent>
                   <SelectItem value="__all__">All Markets</SelectItem>
                   {availableFilters.cities.map(c => (
-                    <SelectItem key={c} value={c}>{c.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</SelectItem>
+                    <SelectItem key={c} value={c}>{formatCityName(c)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -233,7 +226,7 @@ export default function Dashboard() {
           <OpportunityMap
             filters={filters}
             roiFilters={roiFilters}
-            onSelectProperty={handleSelectProperty}
+            onSelectProperty={setSelectedProp}
             selectedId={selectedProp?.id}
             comparables={comparables}
             focusCoord={focusCoord}
@@ -245,8 +238,8 @@ export default function Dashboard() {
         <aside className={`${selectedProp ? 'w-full md:w-[420px]' : 'w-0'} absolute inset-0 md:relative md:inset-auto bg-plt-panel md:border-l border-plt-border flex flex-col transition-all duration-300 overflow-hidden shadow-2xl ring-1 ring-black/5 z-30`}>
           {selectedProp && (() => {
             const p = selectedProp;
-            const cityDisplay = p.city ? p.city.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : '';
-            const zillowListingUrl = `https://www.zillow.com/homes/${encodeURIComponent(`${p.address}, ${cityDisplay}, FL ${p.zip}`)}_rb/`;
+            const cityDisplay = formatCityName(p.city);
+            const zillowListingUrl = buildZillowUrl(p.address, cityDisplay, p.zip);
             const zillowAreaUrl = `https://www.zillow.com/homes/${p.zip}_rb/`;
 
             const currentYear = new Date().getFullYear();
@@ -276,7 +269,7 @@ export default function Dashboard() {
                       <h3 className="text-sm font-bold leading-tight">{p.address}</h3>
                       <p className="text-xs text-plt-muted mt-0.5">{cityDisplay}, FL {p.zip}</p>
                     </div>
-                    <button onClick={() => handleSelectProperty(null)} className="p-2 hover:bg-plt-danger/10 text-plt-muted hover:text-plt-danger transition-all rounded flex-shrink-0 active:scale-[0.98]">
+                    <button onClick={() => setSelectedProp(null)} className="p-2 hover:bg-plt-danger/10 text-plt-muted hover:text-plt-danger transition-all rounded flex-shrink-0 active:scale-[0.98]">
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                     </button>
                   </div>
@@ -360,7 +353,7 @@ export default function Dashboard() {
                       <div
                         key={comp.id}
                         className={`p-3 border rounded transition-all cursor-pointer hover:brightness-105 ${cardCls}`}
-                        onClick={() => comp.lat && comp.lng ? handleSetFocusCoord([comp.lat, comp.lng]) : null}
+                        onClick={() => comp.lat && comp.lng ? setFocusCoord([comp.lat, comp.lng]) : null}
                       >
                         <div className="flex justify-between items-start mb-2">
                           <span className="text-xs font-semibold truncate pr-2">{comp.address}</span>

@@ -4,3 +4,13 @@ import { twMerge } from "tailwind-merge";
 export function cn(...inputs) {
   return twMerge(clsx(inputs));
 }
+
+/** Formats a snake_case city slug into Title Case. "winter_garden" → "Winter Garden" */
+export function formatCityName(city) {
+  return city ? city.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : '';
+}
+
+/** Builds a Zillow listing search URL for a Florida property. */
+export function buildZillowUrl(address, cityDisplay, zip) {
+  return `https://www.zillow.com/homes/${encodeURIComponent(`${address}, ${cityDisplay}, FL ${zip}`)}_rb/`;
+}

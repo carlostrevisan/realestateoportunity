@@ -463,9 +463,10 @@ function ResultsChart({ refreshKey }) {
 
 // ── Modals ─────────────────────────────────────────────────────────────
 
+const WEIGHTED_DEFAULTS = { sqft: 35, zip: 25, avg_new_build_price_sqft_05mi: 30, lot_sqft: 5, year_built: 5, median_household_income: 0 };
+
 function WeightedScoringModal({ open, onClose, onJob }) {
-  const DEFAULTS = { sqft: 35, zip: 25, avg_new_build_price_sqft_05mi: 30, lot_sqft: 5, year_built: 5, median_household_income: 0 };
-  const [weights, setWeights] = useState(DEFAULTS);
+  const [weights, setWeights] = useState(WEIGHTED_DEFAULTS);
   const [running, setRunning] = useState(false);
 
   const total = Object.values(weights).reduce((a, b) => a + b, 0);
@@ -527,6 +528,17 @@ function WeightedScoringModal({ open, onClose, onJob }) {
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// ── Shared Icons ──────────────────────────────────────────────────────
+
+function TrashIcon() {
+  return (
+    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+    </svg>
   );
 }
 
@@ -781,7 +793,7 @@ function IntelControls({ onJob, models, fetchModels }) {
                         <>
                           <span className="text-[10px] font-semibold px-2.5 py-1 rounded-full bg-plt-success/15 text-plt-success border border-plt-success/25">Active</span>
                           <button onClick={e => { e.stopPropagation(); deleteModel(m.id); }} className="text-plt-muted hover:text-plt-danger p-1.5 rounded-lg transition-all active:scale-[0.98]">
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                            <TrashIcon />
                           </button>
                         </>
                       ) : (
@@ -790,7 +802,7 @@ function IntelControls({ onJob, models, fetchModels }) {
                             {activating === m.id ? "Mounting..." : "Mount"}
                           </button>
                           <button onClick={e => { e.stopPropagation(); deleteModel(m.id); }} className="text-plt-muted hover:text-plt-danger p-1.5 rounded-lg transition-all active:scale-[0.98]">
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                            <TrashIcon />
                           </button>
                         </>
                       )}
