@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { useAuth } from "@clerk/react";
+import { useAuth, useUser } from "@clerk/react";
 import { Label, Val, StatusDot, Btn, StatusBadge } from "../components/UI.jsx";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -19,14 +19,32 @@ async function delayMinimum(startTime, ms = 600) {
 
 // Helper for authenticated requests
 const useAuthenticatedFetch = () => {
-  const { getToken } = useAuth();
+  const { getToken, isSignedIn } = useAuth();
+  
   return async (url, options = {}) => {
+    if (!isSignedIn) {
+      alert("⚠️ Authentication Required: Please Sign In to perform this action.");
+      return { ok: false, status: 401 };
+    }
+
     const token = await getToken();
     const headers = {
       ...options.headers,
       Authorization: `Bearer ${token}`,
     };
-    return fetch(url, { ...options, headers });
+    
+    try {
+      const res = await fetch(url, { ...options, headers });
+      if (res.status === 403) {
+        alert("🚫 Access Denied: This operation requires Admin privileges.");
+      } else if (res.status === 401) {
+        alert("⚠️ Session Expired: Please Sign In again.");
+      }
+      return res;
+    } catch (e) {
+      alert("🚨 Network Error: Failed to reach the server.");
+      return { ok: false, status: 500 };
+    }
   };
 };
 
@@ -324,20 +342,10 @@ function ControlCard({ onJob, models, fetchModels }) {
                 </p>
                 <button
                   onClick={async () => {
-                    if (!window.confirm("This will permanently wipe ALL data. This requires ADMIN privileges. Continue?")) return;
-                    try {
-                      const res = await authFetch(`${API}/api/scrape/reset`, { method: "POST" });
-                      if (res.status === 403) {
-                        alert("Access Denied: You must have the 'admin' role to perform a hard reset.");
-                      } else if (res.ok) {
-                        window.location.reload();
-                      } else {
-                        const err = await res.json();
-                        alert(`Reset failed: ${err.error || res.statusText}`);
-                      }
-                    } catch (e) {
-                      alert("Reset failed. Network error.");
-                    }
+                    if (!window.confirm("🚨 DANGER: This will permanently wipe ALL data. Continue?")) return;
+                    
+                    const res = await authFetch(`${API}/api/scrape/reset`, { method: "POST" });
+                    if (res.ok) window.location.reload();
                   }}
                   className="w-full text-sm font-semibold bg-white text-plt-danger border border-plt-danger/30 hover:bg-plt-danger hover:text-white py-2.5 rounded-lg transition-all active:scale-[0.98]"
                 >
@@ -504,19 +512,18 @@ function WeightedScoringModal({ open, onClose, onJob }) {
     const start = Date.now();
     const normalized = {};
     Object.keys(weights).forEach(k => normalized[k] = weights[k] / total);
-    try {
-      const res = await authFetch(`${API}/api/ml/score-weighted`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ weights: normalized }),
-      });
-      if (res.status === 401) {
-        alert("Please sign in to run scoring.");
-      } else {
-        const data = await res.json();
-        if (data.job_id) onJob(data.job_id);
-      }
-    } catch {}
+    
+    const res = await authFetch(`${API}/api/ml/score-weighted`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ weights: normalized }),
+    });
+    
+    if (res.ok) {
+      const data = await res.json();
+      if (data.job_id) onJob(data.job_id);
+    }
+    
     await delayMinimum(start);
     setRunning(false);
     onClose();
@@ -609,30 +616,27 @@ function IngestionControls({ onJob }) {
   const [running, setRunning] = useState({});
 
   const trigger = async (type, params = {}) => {
-    setRunning(p => ({ ...p, [type]: true }));
-    const startTime = Date.now();
     const finalMarket = market === "custom" ? customMarket : market;
     
     if (market === "custom" && !customMarket.trim()) {
       alert("Please enter a market name (e.g. 'Miami, FL')");
-      setRunning(p => ({ ...p, [type]: false }));
       return;
     }
 
+    setRunning(p => ({ ...p, [type]: true }));
+    const startTime = Date.now();
+
     const body = { type, market: finalMarket, throttle: parseInt(throttle), force_renew: forceRenew, all_zips: true, ...params };
-    try {
-      const res = await authFetch(`${API}/api/scrape/trigger`, { 
-        method: "POST", 
-        headers: { "Content-Type": "application/json" }, 
-        body: JSON.stringify(body) 
-      });
-      if (res.status === 401) {
-        alert("Please sign in to run sync tasks.");
-      } else {
-        const data = await res.json();
-        if (data.job_id) onJob(data.job_id);
-      }
-    } catch {}
+    const res = await authFetch(`${API}/api/scrape/trigger`, { 
+      method: "POST", 
+      headers: { "Content-Type": "application/json" }, 
+      body: JSON.stringify(body) 
+    });
+    
+    if (res.ok) {
+      const data = await res.json();
+      if (data.job_id) onJob(data.job_id);
+    }
 
     await delayMinimum(startTime);
     setRunning(p => ({ ...p, [type]: false }));
@@ -738,15 +742,13 @@ function IntelControls({ onJob, models, fetchModels }) {
   const trigger = async (endpoint) => {
     setRunning(p => ({ ...p, [endpoint]: true }));
     const startTime = Date.now();
-    try {
-      const res = await authFetch(`${API}/api/ml/${endpoint}`, { method: "POST" });
-      if (res.status === 401) {
-        alert("Please sign in to perform ML operations.");
-      } else {
-        const data = await res.json();
-        if (data.job_id) onJob(data.job_id);
-      }
-    } catch {}
+    
+    const res = await authFetch(`${API}/api/ml/${endpoint}`, { method: "POST" });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.job_id) onJob(data.job_id);
+    }
+    
     await delayMinimum(startTime);
     setRunning(p => ({ ...p, [endpoint]: false }));
   };
@@ -754,54 +756,44 @@ function IntelControls({ onJob, models, fetchModels }) {
   const startTraining = async () => {
     setRunning(p => ({ ...p, train: true }));
     const startTime = Date.now();
-    try {
-      const res = await authFetch(`${API}/api/ml/train`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ algorithm, ...trainParams }),
-      });
-      if (res.status === 401) {
-        alert("Please sign in to train models.");
-      } else {
-        const data = await res.json();
-        if (data.job_id) onJob(data.job_id);
-      }
-    } catch {}
+    
+    const res = await authFetch(`${API}/api/ml/train`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ algorithm, ...trainParams }),
+    });
+    
+    if (res.ok) {
+      const data = await res.json();
+      if (data.job_id) onJob(data.job_id);
+    }
+    
     await delayMinimum(startTime);
     setRunning(p => ({ ...p, train: false }));
   };
 
   const activateModel = async (modelId) => {
     setActivating(modelId);
-    try { 
-      const res = await authFetch(`${API}/api/ml/models/${modelId}/activate`, { method: "POST" }); 
-      if (res.status === 401) alert("Please sign in to activate models.");
-      else await fetchModels(); 
-    } catch {}
+    const res = await authFetch(`${API}/api/ml/models/${modelId}/activate`, { method: "POST" }); 
+    if (res.ok) await fetchModels(); 
     setActivating(null);
   };
 
   const deleteModel = async (modelId) => {
     if (!window.confirm("Permanently delete this model?")) return;
-    try { 
-      const res = await authFetch(`${API}/api/ml/models/${modelId}`, { method: "DELETE" }); 
-      if (res.status === 401) alert("Please sign in to delete models.");
-      else await fetchModels(); 
-    } catch {}
+    const res = await authFetch(`${API}/api/ml/models/${modelId}`, { method: "DELETE" }); 
+    if (res.ok) await fetchModels(); 
   };
 
   const patchModel = async (modelId) => {
     const fields = editFields[modelId];
     if (!fields) return;
-    try {
-      const res = await authFetch(`${API}/api/ml/models/${modelId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: fields.name || null, description: fields.description || null }),
-      });
-      if (res.status === 401) alert("Please sign in to edit models.");
-      else await fetchModels();
-    } catch {}
+    const res = await authFetch(`${API}/api/ml/models/${modelId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: fields.name || null, description: fields.description || null }),
+    });
+    if (res.ok) await fetchModels();
   };
 
   const activeModel = models.find(m => m.is_active);
@@ -874,24 +866,24 @@ function IntelControls({ onJob, models, fetchModels }) {
                       <div className="grid grid-cols-2 gap-3">
                         <div>
                           <Label>Name</Label>
-                          <Input
+                          <input
                             type="text"
                             value={edit.name}
                             onChange={e => setEditFields(p => ({ ...p, [m.id]: { ...p[m.id], name: e.target.value } }))}
                             onBlur={() => patchModel(m.id)}
                             placeholder="Untitled"
-                            className="h-9 text-sm"
+                            className="h-9 text-sm w-full bg-transparent border-none focus:ring-0 font-semibold"
                           />
                         </div>
                         <div>
                           <Label>Notes</Label>
-                          <Input
+                          <input
                             type="text"
                             value={edit.description}
                             onChange={e => setEditFields(p => ({ ...p, [m.id]: { ...p[m.id], description: e.target.value } }))}
                             onBlur={() => patchModel(m.id)}
                             placeholder="Optional"
-                            className="h-9 text-sm"
+                            className="h-9 text-sm w-full bg-transparent border-none focus:ring-0"
                           />
                         </div>
                       </div>

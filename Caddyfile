@@ -1,12 +1,13 @@
 {
-    # Replace with your actual email for SSL notifications
     email carlostrevisan@gmail.com
 }
 
 realestate.carlostrevisan.xyz {
-    # Use ZeroSSL if Let's Encrypt is rate-limited
     tls {
-        issuer zerossl
+        # Explicitly use ZeroSSL ACME to bypass Let's Encrypt rate limits
+        issuer acme {
+            dir https://acme.zerossl.com/v2/DV90
+        }
     }
 
     # Ensure Caddy can handle ACME challenges before reverse proxying
