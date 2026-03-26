@@ -1,6 +1,7 @@
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
+const helmet = require("helmet");
 const { Pool } = require("pg");
 
 const opportunitiesRouter = require("./routes/opportunities");
@@ -23,7 +24,10 @@ const pool = new Pool({
 // Make pool available to route handlers
 app.locals.db = pool;
 
-app.use(cors());
+app.use(helmet());
+app.use(cors({
+  origin: ["https://realestate.carlostrevisan.xyz", "http://localhost:3000"],
+}));
 app.use(express.json());
 
 // Request logger

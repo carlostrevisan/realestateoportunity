@@ -27,6 +27,12 @@ vi.mock("@clerk/react", () => ({
 
 // Start MSW before every test suite, clean up handlers between tests,
 // and shut down after all tests finish.
-beforeAll(() => server.listen({ onUnhandledRequest: "warn" }));
-afterEach(() => server.resetHandlers());
+beforeAll(() => {
+  server.listen({ onUnhandledRequest: "warn" });
+  window.alert = vi.fn();
+});
+afterEach(() => {
+  server.resetHandlers();
+  vi.clearAllMocks();
+});
 afterAll(() => server.close());

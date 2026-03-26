@@ -7,6 +7,11 @@ jest.mock("pg", () => {
   return { Pool: MockPool };
 });
 
+jest.mock("../middleware/auth", () => ({
+  requireAuth: (req, res, next) => next(),
+  requireAdmin: (req, res, next) => next(),
+}));
+
 // Mock global fetch for proxy routes
 global.fetch = jest.fn();
 

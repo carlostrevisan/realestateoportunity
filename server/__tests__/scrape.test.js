@@ -8,6 +8,11 @@ jest.mock("pg", () => {
   return { Pool: MockPool };
 });
 
+jest.mock("../middleware/auth", () => ({
+  requireAuth: (req, res, next) => next(),
+  requireAdmin: (req, res, next) => next(),
+}));
+
 // Mock global fetch — scrape routes proxy to the data-worker via fetch()
 global.fetch = jest.fn();
 

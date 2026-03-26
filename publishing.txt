@@ -1,9 +1,32 @@
-git add -A && git commit -m "Update" && git push && cd ~/Documents/GitHub/realestateoportunity && docker buildx build --platform linux/amd64 -t carlostrevisan/realestate-frontend:latest --push ./client --target production && docker buildx build --platform linux/amd64 -t carlostrevisan/realestate-backend:latest --push ./server --target production && docker buildx build --platform linux/amd64 -t carlostrevisan/realestate-data-worker:latest --push ./data-engine
+# --- DEPLOYMENT ---
+# 1. Sync .env to VPS (Required for Clerk/Auth to work on production)
+scp .env ct@66.179.241.25:~/realestate/
 
-git pull && docker compose pull && docker compose up -d
+# 2. Build & Push images (from localhost for VPS platform)
+# Load variables from .env for the build args (Mac/Linux compatible)
+# Note: Ensure you are in the project root where .env exists
+docker buildx build --platform linux/amd64 \
+  --build-arg VITE_CLERK_PUBLISHABLE_KEY=$(grep VITE_CLERK_PUBLISHABLE_KEY .env | cut -d '=' -f2) \
+  -t carlostrevisan/realestate-frontend:latest --push ./client --target production
 
---run tests
-docker compose run --rm data-worker pytest tests && docker compose run --rm backend npm test && docker compose run --rm frontend npm test
+docker buildx build --platform linux/amd64 -t carlostrevisan/realestate-backend:latest --push ./server --target production
+docker buildx build --platform linux/amd64 -t carlostrevisan/realestate-data-worker:latest --push ./data-engine
 
---dev local
+# 3. Update VPS
+git pull
+
+# Option A: Standard Update (Keep existing data)
+ssh ct@66.179.241.25 "cd ~/realestate && docker compose pull && docker compose up -d"
+
+# Option B: Hard Reset (Wipe ALL data/volumes and start fresh)
+# WARNING: This wipes SSL certificates. Use too often and you will hit rate limits.
+# ssh ct@66.179.241.25 "cd ~/realestate && docker compose down -v && docker compose pull && docker compose up -d"
+
+# --- TESTING ---
+# Run local tests (Using dev configuration so npm/test tools are available)
+docker compose -f docker-compose.yml -f docker-compose.dev.yml run --rm data-worker pytest tests
+docker compose -f docker-compose.yml -f docker-compose.dev.yml run --rm backend npm test
+docker compose -f docker-compose.yml -f docker-compose.dev.yml run --rm frontend npm test
+
+# --- LOCAL DEVELOPMENT ---
 docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build

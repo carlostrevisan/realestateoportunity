@@ -1,5 +1,6 @@
 const express = require("express");
 const { Parser } = require("json2csv");
+const { requireAuth } = require("../middleware/auth");
 const router = express.Router();
 
 /**
@@ -13,7 +14,7 @@ const router = express.Router();
  *   max_year_built {number} - Max year built filter
  *   limit         {number} - Max rows (default 5000, no 2000 cap for exports)
  */
-router.get("/csv", async (req, res) => {
+router.get("/csv", requireAuth, async (req, res) => {
   const db = req.app.locals.db;
 
   const zip = req.query.zip || null;
