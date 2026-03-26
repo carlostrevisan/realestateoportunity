@@ -1,4 +1,14 @@
+{
+    # Replace with your actual email for SSL notifications
+    email carlostrevisan@gmail.com
+}
+
 realestate.carlostrevisan.xyz {
+    # Use ZeroSSL if Let's Encrypt is rate-limited
+    tls {
+        issuer zerossl
+    }
+
     # Ensure Caddy can handle ACME challenges before reverse proxying
     handle_path /.well-known/acme-challenge/* {
         file_server

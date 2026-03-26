@@ -348,7 +348,7 @@ export default function OpportunityMap({ filters, roiFilters, onSelectProperty, 
 
       <div ref={mapRef} className="flex-1 w-full h-full" style={{ zIndex: 1, backgroundColor: '#f1f5f9' }} />
 
-      <div className="absolute bottom-6 right-4 z-[1000] pointer-events-none">
+      <div className={`absolute bottom-6 right-4 z-[1000] pointer-events-none ${selectedId ? 'hidden md:block' : ''}`}>
         <div className="bg-white/90 backdrop-blur-md border border-plt-border/60 rounded-lg shadow-md px-4 py-3 space-y-1.5 pointer-events-auto">
           <div className="text-[9px] font-black uppercase tracking-[0.2em] text-plt-muted mb-2 border-b border-plt-border pb-1.5">Map Key</div>
           {[
