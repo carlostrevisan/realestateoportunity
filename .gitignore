@@ -14,6 +14,7 @@ __pycache__/
 dist/
 build/
 *.egg
+publishing.txt
 
 # Python virtual environments
 venv/
@@ -67,3 +68,5 @@ exports/
 
 # AI assistant config
 .claude/
+publishing.txt
+publishing.txt

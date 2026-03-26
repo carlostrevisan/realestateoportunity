@@ -1,5 +1,6 @@
 const express = require("express");
 const router = express.Router();
+const { requireAuth } = require("../middleware/auth");
 
 const WORKER_URL = process.env.WORKER_URL || "http://data-worker:5000";
 
@@ -47,7 +48,7 @@ router.get("/status", async (req, res) => {
  * POST /api/ml/train
  * Proxies to data-worker to actually run ml_model.py --train
  */
-router.post("/train", async (req, res) => {
+router.post("/train", requireAuth, async (req, res) => {
   try {
     const workerRes = await fetch(`${WORKER_URL}/run/train`, {
       method: "POST",
@@ -66,7 +67,7 @@ router.post("/train", async (req, res) => {
  * POST /api/ml/score
  * Proxies to data-worker to actually run ml_model.py --score
  */
-router.post("/score", async (req, res) => {
+router.post("/score", requireAuth, async (req, res) => {
   try {
     const workerRes = await fetch(`${WORKER_URL}/run/score`, { method: "POST" });
     const data = await workerRes.json();
@@ -81,7 +82,7 @@ router.post("/score", async (req, res) => {
  * POST /api/ml/score-weighted
  * Proxies to data-worker to run ml_model.py --score-weighted with weights
  */
-router.post("/score-weighted", async (req, res) => {
+router.post("/score-weighted", requireAuth, async (req, res) => {
   try {
     const workerRes = await fetch(`${WORKER_URL}/run/score-weighted`, {
       method: "POST",
@@ -100,7 +101,7 @@ router.post("/score-weighted", async (req, res) => {
  * POST /api/ml/census
  * Proxies to data-worker to run census_fetcher.py --all
  */
-router.post("/census", async (req, res) => {
+router.post("/census", requireAuth, async (req, res) => {
   try {
     const workerRes = await fetch(`${WORKER_URL}/run/census`, { method: "POST" });
     const data = await workerRes.json();
@@ -138,7 +139,7 @@ router.get("/models", async (req, res) => {
  * PATCH /api/ml/models/:id
  * Updates the name and/or description of a training run.
  */
-router.patch("/models/:id", async (req, res) => {
+router.patch("/models/:id", requireAuth, async (req, res) => {
   const db = req.app.locals.db;
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) return res.status(400).json({ error: "Invalid model id" });
@@ -163,7 +164,7 @@ router.patch("/models/:id", async (req, res) => {
  * POST /api/ml/models/:id/activate
  * Sets the specified model as active for scoring (deactivates all others).
  */
-router.post("/models/:id/activate", async (req, res) => {
+router.post("/models/:id/activate", requireAuth, async (req, res) => {
   const db = req.app.locals.db;
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) return res.status(400).json({ error: "Invalid model id" });
@@ -185,7 +186,7 @@ router.post("/models/:id/activate", async (req, res) => {
  * DELETE /api/ml/models/:id
  * Deletes a model run and its associated file via data-worker.
  */
-router.delete("/models/:id", async (req, res) => {
+router.delete("/models/:id", requireAuth, async (req, res) => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) return res.status(400).json({ error: "Invalid model id" });
   try {

@@ -1,3 +1,11 @@
 realestate.carlostrevisan.xyz {
-    reverse_proxy frontend:3000
+    # Ensure Caddy can handle ACME challenges before reverse proxying
+    handle_path /.well-known/acme-challenge/* {
+        file_server
+    }
+
+    # Everything else to the frontend
+    handle {
+        reverse_proxy frontend:3000
+    }
 }

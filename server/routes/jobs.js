@@ -1,5 +1,6 @@
 const express = require("express");
 const router = express.Router();
+const { requireAuth } = require("../middleware/auth");
 
 const WORKER_URL = process.env.WORKER_URL || "http://data-worker:5000";
 
@@ -35,7 +36,7 @@ router.get("/:id", async (req, res) => {
  * POST /api/jobs/:id/stop
  * Signals the worker to terminate a running job.
  */
-router.post("/:id/stop", async (req, res) => {
+router.post("/:id/stop", requireAuth, async (req, res) => {
   try {
     const workerRes = await fetch(`${WORKER_URL}/jobs/${req.params.id}/stop`, {
       method: "POST"

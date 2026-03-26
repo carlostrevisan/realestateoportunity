@@ -3,11 +3,15 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
+# Accept Clerk Key as a build argument
+ARG VITE_CLERK_PUBLISHABLE_KEY
+
 COPY package*.json ./
 RUN npm install
 
 COPY . .
-RUN npm run build
+# Pass the argument as an environment variable for Vite to bake it in
+RUN VITE_CLERK_PUBLISHABLE_KEY=$VITE_CLERK_PUBLISHABLE_KEY npm run build
 
 # ── Production stage — serve with nginx ─────────────────────────────
 FROM nginx:alpine AS production

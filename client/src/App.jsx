@@ -2,6 +2,12 @@ import { BrowserRouter, Routes, Route, NavLink } from "react-router-dom";
 import Dashboard from "./pages/Dashboard.jsx";
 import Operations from "./pages/Operations.jsx";
 import Help from "./pages/Help.jsx";
+import {
+  Show,
+  SignInButton,
+  SignUpButton,
+  UserButton,
+} from "@clerk/react";
 
 export default function App() {
   const navClass = ({ isActive }) =>
@@ -27,6 +33,20 @@ export default function App() {
             <NavLink to="/" end className={navClass}>Map</NavLink>
             <NavLink to="/ops" className={navClass}>Data Engine</NavLink>
             <NavLink to="/help" className={navClass}>Guide</NavLink>
+          </div>
+
+          <div className="ml-auto flex items-center gap-4">
+            <Show when="signed-out">
+              <SignInButton mode="modal">
+                <button className="text-xs font-semibold text-plt-muted hover:text-plt-secondary transition-colors">Sign In</button>
+              </SignInButton>
+              <SignUpButton mode="modal">
+                <button className="px-3 py-1 text-xs font-semibold bg-plt-accent text-white rounded hover:bg-plt-accent/90 transition-colors">Sign Up</button>
+              </SignUpButton>
+            </Show>
+            <Show when="signed-in">
+              <UserButton />
+            </Show>
           </div>
         </nav>
 

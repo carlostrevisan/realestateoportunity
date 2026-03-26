@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
+import { useAuth } from "@clerk/react";
 import { Label, Val, StatusDot, Btn, StatusBadge } from "../components/UI.jsx";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -15,6 +16,19 @@ async function delayMinimum(startTime, ms = 600) {
   const elapsed = Date.now() - startTime;
   if (elapsed < ms) await new Promise(r => setTimeout(r, ms - elapsed));
 }
+
+// Helper for authenticated requests
+const useAuthenticatedFetch = () => {
+  const { getToken } = useAuth();
+  return async (url, options = {}) => {
+    const token = await getToken();
+    const headers = {
+      ...options.headers,
+      Authorization: `Bearer ${token}`,
+    };
+    return fetch(url, { ...options, headers });
+  };
+};
 
 const MARKETS = [
   { value: "tampa",        label: "Tampa" },
@@ -121,6 +135,7 @@ function JobConsole({ selectedId, setSelectedId, jobs = [], onClear }) {
   const [selectedJob, setSelectedJob] = useState(null);
   const [stopping, setStopping] = useState({});
   const scrollRef = useRef(null);
+  const authFetch = useAuthenticatedFetch();
 
   useEffect(() => {
     if (!selectedId) { setSelectedJob(null); return; }
@@ -145,7 +160,7 @@ function JobConsole({ selectedId, setSelectedId, jobs = [], onClear }) {
     e.stopPropagation();
     if (!window.confirm("Terminate this process?")) return;
     setStopping(p => ({ ...p, [jobId]: true }));
-    try { await fetch(`${API}/api/jobs/${jobId}/stop`, { method: "POST" }); } catch {}
+    try { await authFetch(`${API}/api/jobs/${jobId}/stop`, { method: "POST" }); } catch {}
     setStopping(p => ({ ...p, [jobId]: false }));
   };
 
@@ -274,6 +289,7 @@ function JobConsole({ selectedId, setSelectedId, jobs = [], onClear }) {
 }
 
 function ControlCard({ onJob, models, fetchModels }) {
+  const authFetch = useAuthenticatedFetch();
   return (
     <div className="flex flex-col flex-1 bg-white border border-plt-border overflow-hidden relative shadow-sm rounded-xl font-sans">
       <Tabs defaultValue="acquisition" className="flex flex-col flex-1 min-h-0">
@@ -307,12 +323,21 @@ function ControlCard({ onJob, models, fetchModels }) {
                   Permanently clears all properties, ML models, and job history from the database.
                 </p>
                 <button
-                  onClick={() => {
-                    const pwd = window.prompt("Enter password to wipe all data:");
-                    if (pwd === null) return;
-                    if (pwd !== "carlosishere") { window.alert("Incorrect password."); return; }
-                    if (!window.confirm("This will permanently wipe all data. Continue?")) return;
-                    fetch(`${API}/api/scrape/reset`, { method: "POST" }).then(() => window.location.reload());
+                  onClick={async () => {
+                    if (!window.confirm("This will permanently wipe ALL data. This requires ADMIN privileges. Continue?")) return;
+                    try {
+                      const res = await authFetch(`${API}/api/scrape/reset`, { method: "POST" });
+                      if (res.status === 403) {
+                        alert("Access Denied: You must have the 'admin' role to perform a hard reset.");
+                      } else if (res.ok) {
+                        window.location.reload();
+                      } else {
+                        const err = await res.json();
+                        alert(`Reset failed: ${err.error || res.statusText}`);
+                      }
+                    } catch (e) {
+                      alert("Reset failed. Network error.");
+                    }
                   }}
                   className="w-full text-sm font-semibold bg-white text-plt-danger border border-plt-danger/30 hover:bg-plt-danger hover:text-white py-2.5 rounded-lg transition-all active:scale-[0.98]"
                 >
@@ -466,6 +491,7 @@ function ResultsChart({ refreshKey }) {
 const WEIGHTED_DEFAULTS = { sqft: 35, zip: 25, avg_new_build_price_sqft_05mi: 30, lot_sqft: 5, year_built: 5, median_household_income: 0 };
 
 function WeightedScoringModal({ open, onClose, onJob }) {
+  const authFetch = useAuthenticatedFetch();
   const [weights, setWeights] = useState(WEIGHTED_DEFAULTS);
   const [running, setRunning] = useState(false);
 
@@ -479,13 +505,17 @@ function WeightedScoringModal({ open, onClose, onJob }) {
     const normalized = {};
     Object.keys(weights).forEach(k => normalized[k] = weights[k] / total);
     try {
-      const res = await fetch(`${API}/api/ml/score-weighted`, {
+      const res = await authFetch(`${API}/api/ml/score-weighted`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ weights: normalized }),
       });
-      const data = await res.json();
-      if (data.job_id) onJob(data.job_id);
+      if (res.status === 401) {
+        alert("Please sign in to run scoring.");
+      } else {
+        const data = await res.json();
+        if (data.job_id) onJob(data.job_id);
+      }
     } catch {}
     await delayMinimum(start);
     setRunning(false);
@@ -568,6 +598,7 @@ const ALGOS = [
 ];
 
 function IngestionControls({ onJob }) {
+  const authFetch = useAuthenticatedFetch();
   const [market, setMarket] = useState("tampa");
   const [customMarket, setCustomMarket] = useState("");
   const [start, setStart] = useState("2022-01");
@@ -589,9 +620,19 @@ function IngestionControls({ onJob }) {
     }
 
     const body = { type, market: finalMarket, throttle: parseInt(throttle), force_renew: forceRenew, all_zips: true, ...params };
-    const res = await fetch(`${API}/api/scrape/trigger`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-    const data = await res.json();
-    if (data.job_id) onJob(data.job_id);
+    try {
+      const res = await authFetch(`${API}/api/scrape/trigger`, { 
+        method: "POST", 
+        headers: { "Content-Type": "application/json" }, 
+        body: JSON.stringify(body) 
+      });
+      if (res.status === 401) {
+        alert("Please sign in to run sync tasks.");
+      } else {
+        const data = await res.json();
+        if (data.job_id) onJob(data.job_id);
+      }
+    } catch {}
 
     await delayMinimum(startTime);
     setRunning(p => ({ ...p, [type]: false }));
@@ -675,6 +716,7 @@ function IngestionControls({ onJob }) {
 }
 
 function IntelControls({ onJob, models, fetchModels }) {
+  const authFetch = useAuthenticatedFetch();
   const [running, setRunning] = useState({});
   const [activating, setActivating] = useState(null);
   const [expandedId, setExpandedId] = useState(null);
@@ -696,9 +738,15 @@ function IntelControls({ onJob, models, fetchModels }) {
   const trigger = async (endpoint) => {
     setRunning(p => ({ ...p, [endpoint]: true }));
     const startTime = Date.now();
-    const res = await fetch(`${API}/api/ml/${endpoint}`, { method: "POST" });
-    const data = await res.json();
-    if (data.job_id) onJob(data.job_id);
+    try {
+      const res = await authFetch(`${API}/api/ml/${endpoint}`, { method: "POST" });
+      if (res.status === 401) {
+        alert("Please sign in to perform ML operations.");
+      } else {
+        const data = await res.json();
+        if (data.job_id) onJob(data.job_id);
+      }
+    } catch {}
     await delayMinimum(startTime);
     setRunning(p => ({ ...p, [endpoint]: false }));
   };
@@ -707,13 +755,17 @@ function IntelControls({ onJob, models, fetchModels }) {
     setRunning(p => ({ ...p, train: true }));
     const startTime = Date.now();
     try {
-      const res = await fetch(`${API}/api/ml/train`, {
+      const res = await authFetch(`${API}/api/ml/train`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ algorithm, ...trainParams }),
       });
-      const data = await res.json();
-      if (data.job_id) onJob(data.job_id);
+      if (res.status === 401) {
+        alert("Please sign in to train models.");
+      } else {
+        const data = await res.json();
+        if (data.job_id) onJob(data.job_id);
+      }
     } catch {}
     await delayMinimum(startTime);
     setRunning(p => ({ ...p, train: false }));
@@ -721,25 +773,34 @@ function IntelControls({ onJob, models, fetchModels }) {
 
   const activateModel = async (modelId) => {
     setActivating(modelId);
-    try { await fetch(`${API}/api/ml/models/${modelId}/activate`, { method: "POST" }); await fetchModels(); } catch {}
+    try { 
+      const res = await authFetch(`${API}/api/ml/models/${modelId}/activate`, { method: "POST" }); 
+      if (res.status === 401) alert("Please sign in to activate models.");
+      else await fetchModels(); 
+    } catch {}
     setActivating(null);
   };
 
   const deleteModel = async (modelId) => {
     if (!window.confirm("Permanently delete this model?")) return;
-    try { await fetch(`${API}/api/ml/models/${modelId}`, { method: "DELETE" }); await fetchModels(); } catch {}
+    try { 
+      const res = await authFetch(`${API}/api/ml/models/${modelId}`, { method: "DELETE" }); 
+      if (res.status === 401) alert("Please sign in to delete models.");
+      else await fetchModels(); 
+    } catch {}
   };
 
   const patchModel = async (modelId) => {
     const fields = editFields[modelId];
     if (!fields) return;
     try {
-      await fetch(`${API}/api/ml/models/${modelId}`, {
+      const res = await authFetch(`${API}/api/ml/models/${modelId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: fields.name || null, description: fields.description || null }),
       });
-      await fetchModels();
+      if (res.status === 401) alert("Please sign in to edit models.");
+      else await fetchModels();
     } catch {}
   };
 

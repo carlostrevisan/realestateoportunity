@@ -1,5 +1,6 @@
 const express = require("express");
 const router = require("express").Router();
+const { requireAuth, requireAdmin } = require("../middleware/auth");
 
 const WORKER_URL = process.env.WORKER_URL || "http://data-worker:5000";
 const VALID_MARKETS = ["tampa", "orlando", "winter_garden", "winter_park", "all"];
@@ -7,7 +8,7 @@ const VALID_MARKETS = ["tampa", "orlando", "winter_garden", "winter_park", "all"
 /**
  * POST /api/scrape/trigger
  */
-router.post("/trigger", async (req, res) => {
+router.post("/trigger", requireAuth, async (req, res) => {
   const { type = "for_sale", zip, market, start, end, throttle, force_renew, all_zips } = req.body;
 
   if (!["sold", "for_sale"].includes(type)) {
@@ -66,7 +67,7 @@ router.get("/status", async (req, res) => {
 /**
  * POST /api/scrape/reset
  */
-router.post("/reset", async (req, res) => {
+router.post("/reset", requireAdmin, async (req, res) => {
   const db = req.app.locals.db;
   try {
     // 1. Clear Database
