@@ -10,6 +10,10 @@ scikit-learn==1.4.0
 lightgbm==4.3.0
 numpy==1.26.3
 flask==3.0.0
+matplotlib==3.8.2
+reportlab==4.2.2
+folium==0.16.0
+Pillow==10.2.0
 tenacity==9.1.4
 # Testing
 pytest==8.2.0

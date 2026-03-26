@@ -116,7 +116,10 @@ router.get("/", async (req, res) => {
     if (isNaN(minYearBuilt)) return res.status(400).json({ error: "min_year_built must be a number" });
   }
   const listingType = req.query.listing_type || "for_sale";
-  const limit = Math.min(parseInt(req.query.limit) || 1000, 5000);
+  if (!["for_sale", "sold", "all"].includes(listingType)) {
+    return res.status(400).json({ error: 'listing_type must be "for_sale", "sold", or "all"' });
+  }
+  const limit = Math.min(parseInt(req.query.limit, 10) || 1000, 5000);
 
   const conditions = ["lat IS NOT NULL", "lng IS NOT NULL"];
   const params = [];

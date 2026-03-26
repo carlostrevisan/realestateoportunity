@@ -7,6 +7,11 @@ jest.mock("pg", () => {
   return { Pool: MockPool };
 });
 
+jest.mock("../middleware/auth", () => ({
+  requireAuth: (req, res, next) => next(),
+  requireAdmin: (req, res, next) => next(),
+}));
+
 const request = require("supertest");
 const express = require("express");
 const { Pool } = require("pg");
@@ -54,11 +59,34 @@ describe("Export Routes", () => {
       mockQuery.mockResolvedValueOnce({ rows: [{ mls_id: "1" }] });
 
       await request(app).get("/api/export/csv?zip=33606&min_roi=100000");
-      
+
       const [query, params] = mockQuery.mock.calls[0];
-      expect(query).toContain("WHERE zip = $1 AND opportunity_result >= $2");
+      // listing_type is always included ($1), zip becomes $2, min_roi becomes $3
+      expect(query).toContain("listing_type = $1");
+      expect(query).toContain("zip = $2");
+      expect(query).toContain("opportunity_result >= $3");
+      expect(params).toContain("for_sale");
       expect(params).toContain("33606");
       expect(params).toContain(100000);
+    });
+
+    it("accepts city and listing_type filters", async () => {
+      const { app, mockQuery } = buildApp();
+      mockQuery.mockResolvedValueOnce({ rows: [{ mls_id: "1" }] });
+
+      await request(app).get("/api/export/csv?city=tampa&listing_type=sold");
+
+      const [query, params] = mockQuery.mock.calls[0];
+      expect(query).toContain("listing_type = $1");
+      expect(query).toContain("city ILIKE $2");
+      expect(params).toContain("sold");
+      expect(params).toContain("tampa");
+    });
+
+    it("rejects invalid listing_type", async () => {
+      const { app } = buildApp();
+      const res = await request(app).get("/api/export/csv?listing_type=bad");
+      expect(res.status).toBe(400);
     });
   });
 });

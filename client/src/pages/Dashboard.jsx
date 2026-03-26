@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useAuth } from "@clerk/react";
 import OpportunityMap from "../components/OpportunityMap.jsx";
 import { formatCityName, buildZillowUrl } from "../lib/utils";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
@@ -15,9 +16,131 @@ const INITIAL_FILTERS = {
 
 const INITIAL_ROI_FILTERS = { green: true, yellow: false, red: false, gray: false };
 
+// ── Tier helpers ──────────────────────────────────────────────────────────────
+function tierLabel(val) {
+  if (val == null)    return { label: "—",    cls: "text-plt-muted" };
+  if (val > 200_000)  return { label: "HIGH", cls: "text-plt-success font-bold" };
+  if (val >= 0)       return { label: "MID",  cls: "text-plt-warning font-bold" };
+  return               { label: "LOSS", cls: "text-plt-danger  font-bold" };
+}
+
+function fmtMoney(v) {
+  if (v == null) return "—";
+  const abs  = Math.abs(v);
+  const sign = v < 0 ? "-" : "";
+  if (abs >= 1_000_000) return `${sign}$${(abs / 1_000_000).toFixed(1)}M`;
+  if (abs >= 1_000)     return `${sign}$${(abs / 1_000).toFixed(0)}k`;
+  return `${sign}$${abs}`;
+}
+
+// ── PropertyTable ─────────────────────────────────────────────────────────────
+function PropertyTable({ rows, onSelect, selectedId, loading }) {
+  const [sortKey,  setSortKey]  = useState("opportunity_result");
+  const [sortDir,  setSortDir]  = useState("desc");
+
+  const sorted = useMemo(() => {
+    if (!rows) return [];
+    return [...rows].sort((a, b) => {
+      const av = a[sortKey] ?? (sortDir === "asc" ? Infinity : -Infinity);
+      const bv = b[sortKey] ?? (sortDir === "asc" ? Infinity : -Infinity);
+      return sortDir === "asc" ? (av > bv ? 1 : -1) : (av < bv ? 1 : -1);
+    });
+  }, [rows, sortKey, sortDir]);
+
+  const toggleSort = (key) => {
+    if (key === sortKey) setSortDir(d => d === "asc" ? "desc" : "asc");
+    else { setSortKey(key); setSortDir("desc"); }
+  };
+
+  const Th = ({ k, label, right }) => {
+    const active = sortKey === k;
+    return (
+      <th
+        onClick={() => toggleSort(k)}
+        className={`px-3 py-2 text-[9px] font-black uppercase tracking-[0.12em] cursor-pointer select-none whitespace-nowrap
+          ${right ? "text-right" : "text-left"}
+          ${active ? "text-plt-accent" : "text-plt-muted hover:text-plt-secondary"}`}
+      >
+        {label}
+        {active && <span className="ml-1 opacity-60">{sortDir === "asc" ? "↑" : "↓"}</span>}
+      </th>
+    );
+  };
+
+  if (loading) {
+    return (
+      <div className="flex-1 flex items-center justify-center text-xs text-plt-muted">
+        <div className="w-5 h-5 border-2 border-plt-accent border-t-transparent rounded-full animate-spin mr-2" />
+        Loading properties…
+      </div>
+    );
+  }
+
+  if (!rows?.length) {
+    return (
+      <div className="flex-1 flex items-center justify-center text-xs text-plt-muted italic opacity-60">
+        No properties match the current filters.
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex-1 overflow-auto">
+      <table className="w-full text-xs border-collapse">
+        <thead className="sticky top-0 bg-white border-b border-plt-border shadow-sm z-10">
+          <tr>
+            <Th k="address"                label="Address" />
+            <Th k="city"                   label="City" />
+            <Th k="zip"                    label="ZIP" />
+            <Th k="year_built"             label="Year"  right />
+            <Th k="sqft"                   label="Sqft"  right />
+            <Th k="list_price"             label="Asking" right />
+            <Th k="predicted_rebuild_value" label="Predicted" right />
+            <Th k="opportunity_result"     label="Opportunity" right />
+            <th className="px-3 py-2 text-[9px] font-black uppercase tracking-[0.12em] text-plt-muted text-center">Tier</th>
+          </tr>
+        </thead>
+        <tbody>
+          {sorted.map((p, i) => {
+            const tier    = tierLabel(p.opportunity_result);
+            const isActive = p.id === selectedId;
+            return (
+              <tr
+                key={p.id}
+                onClick={() => onSelect(p)}
+                className={`border-b border-plt-border/40 cursor-pointer transition-colors
+                  ${isActive
+                    ? "bg-plt-accent/8 border-l-2 border-l-plt-accent"
+                    : i % 2 === 0
+                      ? "bg-white hover:bg-plt-bg"
+                      : "bg-plt-bg/60 hover:bg-plt-bg"}`}
+              >
+                <td className="px-3 py-2 font-medium max-w-[200px] truncate">{p.address || "—"}</td>
+                <td className="px-3 py-2 text-plt-muted whitespace-nowrap">{formatCityName(p.city)}</td>
+                <td className="px-3 py-2 font-mono text-plt-muted">{p.zip || "—"}</td>
+                <td className="px-3 py-2 text-right font-mono">{p.year_built || "—"}</td>
+                <td className="px-3 py-2 text-right font-mono">{p.sqft ? p.sqft.toLocaleString() : "—"}</td>
+                <td className="px-3 py-2 text-right font-mono">{p.list_price ? `$${p.list_price.toLocaleString()}` : "—"}</td>
+                <td className="px-3 py-2 text-right font-mono">{p.predicted_rebuild_value ? `$${p.predicted_rebuild_value.toLocaleString()}` : "—"}</td>
+                <td className={`px-3 py-2 text-right font-mono font-bold ${tier.cls}`}>
+                  {p.opportunity_result != null ? fmtMoney(p.opportunity_result) : "—"}
+                </td>
+                <td className={`px-3 py-2 text-center text-[10px] font-bold ${tier.cls}`}>{tier.label}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export default function Dashboard() {
+  const { getToken, isSignedIn } = useAuth();
+
   const [filters, setFilters] = useState(INITIAL_FILTERS);
   const [roiFilters, setRoiFilters] = useState(INITIAL_ROI_FILTERS);
+  const [viewMode, setViewMode] = useState("map"); // "map" | "table"
 
   const [availableFilters, setAvailableFilters] = useState({ cities: [], zips: [] });
   const [selectedProp, setSelectedProp] = useState(null);
@@ -25,6 +148,16 @@ export default function Dashboard() {
   const [loadingComps, setLoadingComps] = useState(false);
   const [focusCoord, setFocusCoord] = useState(null);
   const [newBuilds, setNewBuilds] = useState([]);
+
+  // Table view state
+  const [tableRows, setTableRows] = useState(null);
+  const [tableLoading, setTableLoading] = useState(false);
+
+  // Export / Report state
+  const [exporting, setExporting] = useState(false);
+  const [reportState, setReportState] = useState(null); // null | "pending" | "running" | "done" | "failed"
+  const [reportError, setReportError] = useState(null);
+  const pollRef = useRef(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -69,6 +202,133 @@ export default function Dashboard() {
       .finally(() => { if (!controller.signal.aborted) setLoadingComps(false); });
     return () => controller.abort();
   }, [selectedProp]);
+
+  // ── Table data ─────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (viewMode !== "table") return;
+    const ctrl = new AbortController();
+    setTableLoading(true);
+    const p = new URLSearchParams();
+    if (filters.listing_type) p.set("listing_type", filters.listing_type);
+    if (filters.city)         p.set("city",         filters.city);
+    if (filters.zip)          p.set("zip",          filters.zip);
+    if (filters.min_roi)      p.set("min_roi",      filters.min_roi);
+    if (filters.max_year_built) p.set("max_year_built", filters.max_year_built);
+    p.set("limit", "2000");
+
+    fetch(`${API_BASE}/api/opportunities?${p}`, { signal: ctrl.signal })
+      .then(r => r.ok ? r.json() : Promise.reject(r.status))
+      .then(data => setTableRows((data.features || []).map(f => ({ id: f.properties.id, ...f.properties }))))
+      .catch(err => { if (err.name !== "AbortError") setTableRows([]); })
+      .finally(() => { if (!ctrl.signal.aborted) setTableLoading(false); });
+
+    return () => ctrl.abort();
+  }, [viewMode, filters]);
+
+  // ── Export CSV ──────────────────────────────────────────────────────────────
+  const handleExportCsv = useCallback(async () => {
+    if (!isSignedIn) { alert("Please sign in to export data."); return; }
+    setExporting(true);
+    try {
+      const token  = await getToken();
+      const p      = new URLSearchParams();
+      if (filters.listing_type) p.set("listing_type", filters.listing_type);
+      if (filters.city)         p.set("city",         filters.city);
+      if (filters.zip)          p.set("zip",          filters.zip);
+      if (filters.min_roi)      p.set("min_roi",      filters.min_roi);
+      if (filters.max_year_built) p.set("max_year_built", filters.max_year_built);
+      p.set("limit", "10000");
+
+      const res  = await fetch(`${API_BASE}/api/export/csv?${p}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) { alert("Export failed — try again."); return; }
+
+      const blob = await res.blob();
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      const slug = filters.city || filters.zip || "all";
+      a.href     = url;
+      a.download = `opportunities_${slug}_${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setExporting(false);
+    }
+  }, [filters, isSignedIn, getToken]);
+
+  // ── Generate PDF Report ─────────────────────────────────────────────────────
+  const handleGenerateReport = useCallback(async () => {
+    if (!isSignedIn) { alert("Please sign in to generate a report."); return; }
+    setReportState("pending");
+    setReportError(null);
+
+    try {
+      const token = await getToken();
+      const filterPayload = {
+        listing_type: filters.listing_type || "for_sale",
+        ...(filters.city          && { city:           filters.city }),
+        ...(filters.zip           && { zip:            filters.zip }),
+        ...(filters.min_roi       && { min_roi:        filters.min_roi }),
+        ...(filters.max_year_built && { max_year_built: filters.max_year_built }),
+      };
+
+      const startRes = await fetch(`${API_BASE}/api/report`, {
+        method:  "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body:    JSON.stringify(filterPayload),
+      });
+      if (!startRes.ok) { setReportState("failed"); setReportError("Could not start report job."); return; }
+      const { job_id } = await startRes.json();
+      setReportState("running");
+
+      // Poll job status every 2 s
+      pollRef.current = setInterval(async () => {
+        try {
+          const jobRes = await fetch(`${API_BASE}/api/jobs/${job_id}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          const job = await jobRes.json();
+
+          if (job.status === "completed") {
+            clearInterval(pollRef.current);
+            setReportState("done");
+
+            // Download PDF
+            const pdfRes = await fetch(`${API_BASE}/api/report/${job_id}`, {
+              headers: { Authorization: `Bearer ${token}` },
+            });
+            if (pdfRes.ok) {
+              const blob = await pdfRes.blob();
+              const url  = URL.createObjectURL(blob);
+              const a    = document.createElement("a");
+              a.href     = url;
+              a.download = `opportunity_report_${new Date().toISOString().slice(0, 10)}.pdf`;
+              a.click();
+              URL.revokeObjectURL(url);
+            }
+            setTimeout(() => setReportState(null), 3000);
+
+          } else if (job.status === "failed") {
+            clearInterval(pollRef.current);
+            setReportState("failed");
+            setReportError("Report generation failed. Check the Data Engine logs.");
+          }
+        } catch {
+          clearInterval(pollRef.current);
+          setReportState("failed");
+          setReportError("Lost connection while polling.");
+        }
+      }, 2000);
+
+    } catch {
+      setReportState("failed");
+      setReportError("Unexpected error starting report.");
+    }
+  }, [filters, isSignedIn, getToken]);
+
+  // Clear poll on unmount
+  useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
 
   const handleChange = useCallback((e) => {
     const { name, value } = e.target;
@@ -192,7 +452,7 @@ export default function Dashboard() {
           </div>
 
           {/* ROI Toggles & Actions */}
-          <div className="flex items-center gap-3 sm:gap-6">
+          <div className="flex items-center gap-3 sm:gap-6 flex-wrap">
             {hasActiveFilters && (
               <button
                 onClick={clearFilters}
@@ -217,21 +477,103 @@ export default function Dashboard() {
                 </label>
               ))}
             </div>
+
+            {/* Map / Table toggle */}
+            <div className="flex items-center rounded-md border border-plt-border overflow-hidden text-[10px] font-bold uppercase tracking-widest">
+              {["map", "table"].map(mode => (
+                <button
+                  key={mode}
+                  onClick={() => setViewMode(mode)}
+                  className={`px-3 py-1.5 transition-colors ${
+                    viewMode === mode
+                      ? "bg-plt-accent text-white"
+                      : "bg-white text-plt-muted hover:text-plt-secondary"
+                  }`}
+                >{mode}</button>
+              ))}
+            </div>
+
+            {/* Export + Report — only in table mode */}
+            {viewMode === "table" && (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleExportCsv}
+                  disabled={exporting}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest rounded-md border border-plt-border bg-white text-plt-secondary hover:border-plt-accent hover:text-plt-accent disabled:opacity-50 transition-colors"
+                >
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                  {exporting ? "Exporting…" : "Export CSV"}
+                </button>
+
+                <button
+                  onClick={handleGenerateReport}
+                  disabled={reportState === "pending" || reportState === "running"}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest rounded-md transition-colors
+                    ${reportState === "done"
+                      ? "bg-plt-success/10 border border-plt-success text-plt-success"
+                      : reportState === "failed"
+                        ? "bg-plt-danger/10 border border-plt-danger text-plt-danger"
+                        : "bg-plt-accent text-white hover:bg-plt-accent/90 disabled:opacity-50"
+                    }`}
+                >
+                  {reportState === "pending" || reportState === "running" ? (
+                    <><span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin inline-block" />
+                    {reportState === "pending" ? "Starting…" : "Building…"}</>
+                  ) : reportState === "done" ? (
+                    <><svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7"/></svg> Downloaded!</>
+                  ) : (
+                    <><svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                    {reportState === "failed" ? "Retry Report" : "Generate Report"}</>
+                  )}
+                </button>
+                {reportError && (
+                  <span className="text-[9px] text-plt-danger max-w-[160px] leading-tight">{reportError}</span>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
 
       <div className="flex-1 flex overflow-hidden">
-        <div className={`flex-1 relative transition-all duration-500 ${selectedProp ? 'mr-0' : ''}`}>
-          <OpportunityMap
-            filters={filters}
-            roiFilters={roiFilters}
-            onSelectProperty={setSelectedProp}
-            selectedId={selectedProp?.id}
-            comparables={comparables}
-            focusCoord={focusCoord}
-            newBuilds={newBuilds}
-          />
+        <div className={`flex-1 relative flex flex-col transition-all duration-500 ${selectedProp ? 'mr-0' : ''}`}>
+          {viewMode === "map" ? (
+            <OpportunityMap
+              filters={filters}
+              roiFilters={roiFilters}
+              onSelectProperty={setSelectedProp}
+              selectedId={selectedProp?.id}
+              comparables={comparables}
+              focusCoord={focusCoord}
+              newBuilds={newBuilds}
+            />
+          ) : (
+            <>
+              {/* Table toolbar: row count */}
+              <div className="flex items-center justify-between px-4 py-2 bg-white border-b border-plt-border flex-shrink-0">
+                <span className="text-[10px] text-plt-muted font-sans">
+                  {tableLoading
+                    ? "Loading…"
+                    : tableRows
+                      ? `${tableRows.length.toLocaleString()} propert${tableRows.length === 1 ? "y" : "ies"} — sorted by opportunity`
+                      : ""}
+                </span>
+                {selectedProp && (
+                  <button onClick={() => setSelectedProp(null)} className="text-[10px] text-plt-muted hover:text-plt-danger transition-colors">
+                    ✕ Close detail
+                  </button>
+                )}
+              </div>
+              <PropertyTable
+                rows={tableRows}
+                onSelect={setSelectedProp}
+                selectedId={selectedProp?.id}
+                loading={tableLoading}
+              />
+            </>
+          )}
         </div>
 
         {/* Property detail sidebar — overlays map on mobile, slides in from right on md+ */}

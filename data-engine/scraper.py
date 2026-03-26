@@ -252,6 +252,9 @@ def scrape_for_sale(market_or_zip, throttle=None, dry_run=False, all_zips=False)
     return 0
 
 def _parse_ym(ym):
+    import re
+    if not re.match(r'^\d{4}-\d{2}$', ym):
+        raise ValueError(f"Invalid date format: {ym!r}. Expected YYYY-MM")
     p = ym.split("-")
     return date(int(p[0]), int(p[1]), 1)
 

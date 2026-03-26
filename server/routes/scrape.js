@@ -20,7 +20,9 @@ router.post("/trigger", requireAuth, async (req, res) => {
   if (zip && !/^\d{5}$/.test(zip)) {
     return res.status(400).json({ error: "zip must be 5 digits" });
   }
-  // Removed strict VALID_MARKETS check to allow custom strings from frontend
+  if (market && !VALID_MARKETS.includes(market)) {
+    return res.status(400).json({ error: "Invalid market" });
+  }
   if (type === "sold" && !(start && end)) {
     return res.status(400).json({ error: 'type "sold" requires start and end (YYYY-MM)' });
   }
@@ -35,14 +37,14 @@ router.post("/trigger", requireAuth, async (req, res) => {
     res.status(workerRes.status).json(data);
   } catch (err) {
     console.error("[scrape/trigger] Worker unreachable:", err.message);
-    res.status(503).json({ error: "data-worker unavailable", detail: err.message });
+    res.status(503).json({ error: "data-worker unavailable" });
   }
 });
 
 /**
  * GET /api/scrape/status
  */
-router.get("/status", async (req, res) => {
+router.get("/status", requireAuth, async (req, res) => {
   const db = req.app.locals.db;
   try {
     const { rows } = await db.query(`

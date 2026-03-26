@@ -27,12 +27,17 @@ import json
 from datetime import datetime, timezone
 from collections import OrderedDict
 
-from flask import Flask, jsonify, request
+import re
+
+from flask import Flask, jsonify, request, send_file
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s", datefmt="%H:%M:%S")
 
 app = Flask(__name__)
+
+# Report output file registry — job_id → PDF path
+_report_files: dict = {}
 
 # In-memory job store — keeps the last 50 jobs
 _lock = threading.Lock()
@@ -172,7 +177,8 @@ def stop_job(job_id):
             _jobs[job_id]["logs"].append("[runner] Job stopped by user.")
         return jsonify({"status": "stopping"})
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        app.logger.error(f"[ERROR] stop_job {job_id}: {str(e)}")
+        return jsonify({"error": "Internal server error"}), 500
 
 
 @app.post("/run/scrape")
@@ -218,9 +224,29 @@ def run_scrape():
     return jsonify({"job_id": job_id, "status": "started", "cmd": " ".join(cmd)})
 
 
+VALID_ALGORITHMS = {"xgboost", "random_forest", "ridge", "lightgbm"}
+
 @app.post("/run/train")
 def run_train():
     body = request.get_json(silent=True) or {}
+
+    if "algorithm" in body and body["algorithm"] not in VALID_ALGORITHMS:
+        return jsonify({"error": "Invalid algorithm"}), 400
+    if "n_estimators" in body:
+        try:
+            n = int(body["n_estimators"])
+            if not (1 <= n <= 5000):
+                return jsonify({"error": "n_estimators must be between 1 and 5000"}), 400
+        except (TypeError, ValueError):
+            return jsonify({"error": "n_estimators must be an integer"}), 400
+    if "max_depth" in body:
+        try:
+            d = int(body["max_depth"])
+            if not (1 <= d <= 20):
+                return jsonify({"error": "max_depth must be between 1 and 20"}), 400
+        except (TypeError, ValueError):
+            return jsonify({"error": "max_depth must be an integer"}), 400
+
     cmd = [sys.executable, "ml_model.py", "--train"]
     if "algorithm"     in body: cmd += ["--algorithm",     str(body["algorithm"])]
     if "n_estimators"  in body: cmd += ["--n-estimators",  str(body["n_estimators"])]
@@ -268,7 +294,8 @@ def reset_data():
             return jsonify({"status": "ok", "message": "CSV deleted"})
         return jsonify({"status": "ok", "message": "No CSV found to delete"})
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        app.logger.error(f"[ERROR] reset_data: {str(e)}")
+        return jsonify({"error": "Internal server error"}), 500
 
 
 @app.delete("/models/<int:run_id>")
@@ -278,11 +305,68 @@ def delete_model(run_id):
         import db
         model_path = db.delete_model_run(run_id)
         if model_path and os.path.exists(model_path):
-            os.remove(model_path)
+            safe_root = os.path.realpath("models")
+            resolved = os.path.realpath(model_path)
+            if not resolved.startswith(safe_root + os.sep):
+                return jsonify({"error": "Invalid model path"}), 400
+            os.remove(resolved)
             return jsonify({"status": "ok", "message": f"Model {run_id} and file deleted"})
         return jsonify({"status": "ok", "message": f"Model {run_id} deleted (no file found)"})
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        app.logger.error(f"[ERROR] delete_model {run_id}: {str(e)}")
+        return jsonify({"error": "Internal server error"}), 500
+
+
+@app.post("/run/report")
+def run_report():
+    """Spawn report_generator.py as a job; returns job_id immediately."""
+    body    = request.get_json(silent=True) or {}
+    filters = body.get("filters", {})
+
+    job_id      = _make_job("report", {"filters": filters})
+    output_path = f"/tmp/report_{job_id}.pdf"
+    _report_files[job_id] = output_path
+
+    cmd = [
+        sys.executable, "report_generator.py",
+        "--job-id",  job_id,
+        "--output",  output_path,
+        "--filters", json.dumps(filters),
+    ]
+    _spawn(job_id, cmd)
+    return jsonify({"job_id": job_id, "status": "started"})
+
+
+@app.get("/report/<job_id>")
+def get_report(job_id):
+    """Stream the generated PDF once the job has completed."""
+    if not re.match(r"^[a-f0-9]{10}$", job_id):
+        return jsonify({"error": "Invalid job id"}), 400
+
+    output_path = _report_files.get(job_id)
+    if not output_path or not os.path.exists(output_path):
+        return jsonify({"error": "Report not found — job may still be running"}), 404
+
+    return send_file(
+        output_path,
+        mimetype="application/pdf",
+        as_attachment=True,
+        download_name=f"opportunity_report_{job_id}.pdf",
+    )
+
+
+@app.get("/report/<job_id>/map")
+def get_report_map(job_id):
+    """Stream the companion Folium HTML map if it was generated."""
+    if not re.match(r"^[a-f0-9]{10}$", job_id):
+        return jsonify({"error": "Invalid job id"}), 400
+
+    pdf_path  = _report_files.get(job_id, "")
+    html_path = pdf_path.replace(".pdf", "_map.html")
+    if not html_path or not os.path.exists(html_path):
+        return jsonify({"error": "Map not found"}), 404
+
+    return send_file(html_path, mimetype="text/html")
 
 
 if __name__ == "__main__":

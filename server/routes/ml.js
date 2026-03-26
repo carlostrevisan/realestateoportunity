@@ -8,13 +8,13 @@ const WORKER_URL = process.env.WORKER_URL || "http://data-worker:5000";
  * GET /api/ml/status
  * Returns ML pipeline status from the DB (model_runs + property counts).
  */
-router.get("/status", async (req, res) => {
+router.get("/status", requireAuth, async (req, res) => {
   const db = req.app.locals.db;
   try {
     const { rows: runRows } = await db.query(`
       SELECT DISTINCT ON (run_type)
         run_type, status, started_at, completed_at,
-        properties_trained, properties_scored, r2_score, error_message
+        properties_trained, properties_scored, r2_score
       FROM model_runs
       ORDER BY run_type, started_at DESC
     `);
@@ -59,7 +59,7 @@ router.post("/train", requireAuth, async (req, res) => {
     res.status(workerRes.status).json(data);
   } catch (err) {
     console.error("[ml/train] Worker unreachable:", err.message);
-    res.status(503).json({ error: "data-worker unavailable", detail: err.message });
+    res.status(503).json({ error: "data-worker unavailable" });
   }
 });
 
@@ -74,7 +74,7 @@ router.post("/score", requireAuth, async (req, res) => {
     res.status(workerRes.status).json(data);
   } catch (err) {
     console.error("[ml/score] Worker unreachable:", err.message);
-    res.status(503).json({ error: "data-worker unavailable", detail: err.message });
+    res.status(503).json({ error: "data-worker unavailable" });
   }
 });
 
@@ -93,7 +93,7 @@ router.post("/score-weighted", requireAuth, async (req, res) => {
     res.status(workerRes.status).json(data);
   } catch (err) {
     console.error("[ml/score-weighted] Worker unreachable:", err.message);
-    res.status(503).json({ error: "data-worker unavailable", detail: err.message });
+    res.status(503).json({ error: "data-worker unavailable" });
   }
 });
 
@@ -108,7 +108,7 @@ router.post("/census", requireAuth, async (req, res) => {
     res.status(workerRes.status).json(data);
   } catch (err) {
     console.error("[ml/census] Worker unreachable:", err.message);
-    res.status(503).json({ error: "data-worker unavailable", detail: err.message });
+    res.status(503).json({ error: "data-worker unavailable" });
   }
 });
 
@@ -116,13 +116,13 @@ router.post("/census", requireAuth, async (req, res) => {
  * GET /api/ml/models
  * Returns all completed training runs with their model metadata, newest first.
  */
-router.get("/models", async (req, res) => {
+router.get("/models", requireAuth, async (req, res) => {
   const db = req.app.locals.db;
   try {
     const { rows } = await db.query(`
       SELECT id, status, started_at, completed_at,
-             properties_trained, r2_score, error_message,
-             model_path, training_context, is_active,
+             properties_trained, r2_score,
+             training_context, is_active,
              name, description
       FROM model_runs
       WHERE run_type = 'train' AND status = 'completed'
@@ -146,6 +146,12 @@ router.patch("/models/:id", requireAuth, async (req, res) => {
   const { name, description } = req.body;
   if (name === undefined && description === undefined) {
     return res.status(400).json({ error: "Provide name or description" });
+  }
+  if (name !== undefined && name !== null && (typeof name !== "string" || name.length > 255)) {
+    return res.status(400).json({ error: "name must be a string up to 255 characters" });
+  }
+  if (description !== undefined && description !== null && (typeof description !== "string" || description.length > 1000)) {
+    return res.status(400).json({ error: "description must be a string up to 1000 characters" });
   }
   try {
     const { rowCount } = await db.query(
@@ -195,7 +201,7 @@ router.delete("/models/:id", requireAuth, async (req, res) => {
     res.status(workerRes.status).json(data);
   } catch (err) {
     console.error("[ml/models/delete] Worker unreachable:", err.message);
-    res.status(503).json({ error: "data-worker unavailable", detail: err.message });
+    res.status(503).json({ error: "data-worker unavailable" });
   }
 });
 
@@ -203,7 +209,7 @@ router.delete("/models/:id", requireAuth, async (req, res) => {
  * GET /api/ml/results
  * Returns opportunity_result distribution across all scored properties.
  */
-router.get("/results", async (req, res) => {
+router.get("/results", requireAuth, async (req, res) => {
   const db = req.app.locals.db;
   try {
     const { rows: [r] } = await db.query(`
@@ -248,7 +254,7 @@ router.get("/results", async (req, res) => {
  * Returns a unified, chronologically sorted log of all operations from the DB
  * (model_runs + scrape_log). Persistent across restarts — unlike in-memory job logs.
  */
-router.get("/ops-log", async (req, res) => {
+router.get("/ops-log", requireAuth, async (req, res) => {
   const db = req.app.locals.db;
   try {
     const [{ rows: mlOps }, { rows: scrapeOps }] = await Promise.all([
@@ -256,7 +262,7 @@ router.get("/ops-log", async (req, res) => {
         SELECT id, run_type AS type, status, started_at, completed_at,
                properties_trained, properties_scored, r2_score,
                training_context->>'algorithm' AS algorithm,
-               error_message, name
+               name
         FROM model_runs
         ORDER BY started_at DESC LIMIT 50
       `),

@@ -2,6 +2,7 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
+const rateLimit = require("express-rate-limit");
 const { Pool } = require("pg");
 
 const opportunitiesRouter = require("./routes/opportunities");
@@ -9,6 +10,8 @@ const scrapeRouter = require("./routes/scrape");
 const exportRouter = require("./routes/export");
 const mlRouter = require("./routes/ml");
 const jobsRouter = require("./routes/jobs");
+const statsRouter  = require("./routes/stats");
+const reportRouter = require("./routes/report");
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -25,6 +28,7 @@ const pool = new Pool({
 app.locals.db = pool;
 
 app.use(helmet());
+app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 100, standardHeaders: true, legacyHeaders: false }));
 app.use(cors({
   origin: ["https://realestate.carlostrevisan.xyz", "http://localhost:3000"],
 }));
@@ -42,11 +46,13 @@ app.get("/health", async (req, res) => {
     await pool.query("SELECT 1");
     res.json({ status: "ok", db: "connected" });
   } catch (err) {
-    res.status(503).json({ status: "error", db: "disconnected", error: err.message });
+    res.status(503).json({ status: "error", db: "disconnected" });
   }
 });
 
 // API routes
+app.use("/api/stats",  statsRouter);
+app.use("/api/report", reportRouter);
 app.use("/api/opportunities", opportunitiesRouter);
 app.use("/api/scrape", scrapeRouter);
 app.use("/api/export", exportRouter);

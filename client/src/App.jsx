@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, NavLink } from "react-router-dom";
+import Home from "./pages/Home.jsx";
 import Dashboard from "./pages/Dashboard.jsx";
 import Operations from "./pages/Operations.jsx";
 import Help from "./pages/Help.jsx";
@@ -30,7 +31,8 @@ export default function App() {
           </div>
 
           <div className="flex h-full items-stretch">
-            <NavLink to="/" end className={navClass}>Map</NavLink>
+            <NavLink to="/" end className={navClass}>Home</NavLink>
+            <NavLink to="/map" className={navClass}>Map</NavLink>
             <NavLink to="/ops" className={navClass}>Data Engine</NavLink>
             <NavLink to="/help" className={navClass}>Guide</NavLink>
           </div>
@@ -52,7 +54,8 @@ export default function App() {
 
         <main className="flex-1 flex flex-col overflow-hidden relative">
           <Routes>
-            <Route path="/" element={<Dashboard />} />
+            <Route path="/" element={<Home />} />
+            <Route path="/map" element={<Dashboard />} />
             <Route path="/ops" element={<Operations />} />
             <Route path="/help" element={<Help />} />
           </Routes>
