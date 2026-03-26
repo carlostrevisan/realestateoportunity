@@ -428,7 +428,7 @@ function ResultsChart({ refreshKey }) {
       .catch(() => {});
   }, [refreshKey]);
 
-  if (!data || data.totals.total === 0) {
+  if (!data || !data.totals || data.totals.total === 0) {
     return (
       <div className="bg-white border border-plt-border rounded-xl px-5 py-4 shadow-sm flex items-center gap-4">
         <div className="w-1.5 h-1.5 bg-plt-accent rounded-full" />
@@ -994,7 +994,7 @@ export default function Operations() {
       ]);
       setMlStatus(ml);
       setScrapeStatus(sc.scrape_status || []);
-      setJobs(jb);
+      setJobs(Array.isArray(jb) ? jb : []);
     } catch {}
   }, []);
 
