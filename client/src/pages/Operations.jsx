@@ -159,7 +159,7 @@ function JobConsole({ selectedId, setSelectedId, jobs = [], onClear, isSignedIn 
       } catch {}
     };
     poll();
-    const id = setInterval(poll, 1500);
+    const id = setInterval(poll, 3000);
     return () => clearInterval(id);
   }, [selectedId]);
 
@@ -883,7 +883,7 @@ export default function Operations() {
   useEffect(() => {
     fetchStatus();
     fetchModels();
-    const id = setInterval(() => { fetchStatus(); fetchModels(); }, 4000);
+    const id = setInterval(() => { fetchStatus(); fetchModels(); }, 15000);
     return () => clearInterval(id);
   }, [fetchStatus, fetchModels]);
 

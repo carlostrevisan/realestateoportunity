@@ -206,8 +206,6 @@ export default function Reporting() {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [rerunning, setRerunning] = useState(false);
-  const [rerunError, setRerunError] = useState(null);
   const [mlStatus, setMlStatus] = useState(null);
   const [scrapeStatus, setScrapeStatus] = useState([]);
   const abortRef = useRef(null);
@@ -249,28 +247,6 @@ export default function Reporting() {
     const id = setInterval(fetchEngineStatus, 8000);
     return () => clearInterval(id);
   }, [fetchEngineStatus]);
-
-  const handleRerun = async () => {
-    if (!isSignedIn) return;
-    setRerunning(true);
-    setRerunError(null);
-    try {
-      const token = await getToken();
-      const res = await fetch(`${API}/api/ml/score`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.error || `HTTP ${res.status}`);
-      }
-      setTimeout(() => loadStats(new AbortController().signal), 1500);
-    } catch (e) {
-      setRerunError(e.message);
-    } finally {
-      setRerunning(false);
-    }
-  };
 
   const s = stats;
 
@@ -437,6 +413,8 @@ export default function Reporting() {
                 <div>
                   <Label>Trained on</Label>
                   <Val>{s.last_run.properties_trained?.toLocaleString()}</Val>
+                </div>
+              )}
             </div>
           </div>
         </Panel>

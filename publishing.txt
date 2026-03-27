@@ -1,6 +1,6 @@
 # --- DEPLOYMENT ---
 # 1. Sync .env to VPS (Required for Clerk/Auth to work on production)
-scp .env ct@66.179.241.25:~/realestate/
+scp .env ct@66.179.241.25:~/realestateoportunity/
 
 # 2. Build & Push images (from localhost for VPS platform)
 # Load variables from .env for the build args (Mac/Linux compatible)
@@ -16,11 +16,11 @@ docker buildx build --platform linux/amd64 -t carlostrevisan/realestate-data-wor
 git pull
 
 # Option A: Standard Update (Keep existing data)
-ssh ct@66.179.241.25 "cd ~/realestate && docker compose pull && docker compose up -d"
+ssh ct@66.179.241.25 "cd ~/realestateoportunity && docker compose pull && docker compose up -d"
 
 # Option B: Hard Reset (Wipe ALL data/volumes and start fresh)
 # WARNING: This wipes SSL certificates. Use too often and you will hit rate limits.
-# ssh ct@66.179.241.25 "cd ~/realestate && docker compose down -v && docker compose pull && docker compose up -d"
+# ssh ct@66.179.241.25 "cd ~/realestateoportunity && docker compose down -v && docker compose pull && docker compose up -d"
 
 # --- TESTING ---
 # Run local tests (Using dev configuration so npm/test tools are available)

@@ -185,7 +185,9 @@ def sanity_check_data(df, stage="training"):
     errors = []
 
     if len(df) < 10:
-        errors.append(f"Insufficient records ({len(df)}). Need at least 10.")
+        msg = f"Insufficient records ({len(df)}). Need at least 10."
+        logger.error(f"[FAIL] Sanity check failed: {msg}")
+        return False, msg
 
     # Check for coordinates
     null_coords = df['lat'].isna().sum() + df['lng'].isna().sum()

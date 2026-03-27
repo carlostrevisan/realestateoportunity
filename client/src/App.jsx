@@ -27,7 +27,7 @@ function MobileMenu({ open, onClose }) {
 
   return (
     <div
-      className={`fixed top-12 left-0 right-0 bg-white/97 backdrop-blur-md border-b border-plt-border shadow-lg z-[2100] flex flex-col overflow-hidden transition-all duration-200 ease-out ${
+      className={`fixed top-12 left-0 right-0 bg-white/95 backdrop-blur-md border-b border-plt-border shadow-lg z-[2100] flex flex-col overflow-hidden transition-all duration-200 ease-out ${
         open ? "max-h-96 py-2 opacity-100" : "max-h-0 py-0 opacity-0 pointer-events-none"
       }`}
     >
@@ -72,7 +72,7 @@ function AppNav() {
     }`;
 
   return (
-    <nav ref={navRef} className="bg-white/90 backdrop-blur-md border-b border-plt-border px-4 sm:px-6 flex items-center h-12 flex-shrink-0 z-[2000] relative">
+    <nav ref={navRef} className="bg-white border-b border-plt-border px-4 sm:px-6 flex items-center h-12 flex-shrink-0 z-[9999] relative">
       {/* Logo */}
       <div className="flex items-center gap-2 mr-3 lg:mr-8 flex-shrink-0">
         <div className="w-2.5 h-2.5 bg-plt-accent rounded-sm status-active shadow-[0_0_10px_var(--plt-accent)]" />
