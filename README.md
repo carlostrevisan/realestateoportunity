@@ -1,26 +1,30 @@
 # Florida Real Estate Opportunity Engine
 
-A full-stack investment analysis tool that identifies **Buy, Demolish, Rebuild** opportunities across Florida markets. It surfaces aging single-family homes where lot value + new construction costs ≈ 3× the current property value - pinpointing profitable teardown candidates on an interactive map.
+A full-stack investment analysis tool that identifies **Buy, Demolish, Rebuild** opportunities across Florida markets. It surfaces aging single-family homes where lot value + new construction costs make teardown candidates profitable — scored by an ML model and displayed on an interactive map.
 
 ---
 
 ## What It Does
 
-- Scrapes live MLS listings via HomeHarvest (Realtor.com)
+- Scrapes live MLS listings via HomeHarvest (Realtor.com) by market and date range
 - Cleans and filters data to single-family homes within investment-relevant parameters
-- Trains an XGBoost model to predict post-rebuild property value
-- Scores every property with an opportunity result: `predicted_rebuild_value − (acquisition_cost + construction_cost)`
+- Enriches properties with ZIP-level median household income from the US Census API
+- Trains a model (XGBoost, Random Forest, Ridge, or LightGBM) to predict post-rebuild property value using geospatial features (0.5-mile radius new-build comps)
+- Scores every for-sale property: `predicted_rebuild_value − (list_price + sqft × construction_cost/sqft)`
 - Displays results on a live map with color-coded ROI markers
+- Tracks all scrape, train, and score jobs with a real-time console
 - Exports filtered results to CSV
 
 ---
+
 ## Tech Stack
 
 | Layer | Technology |
 |-------|-----------|
-| Frontend | React 18, Vite, Tailwind CSS, React-Leaflet |
-| Backend | Node.js, Express |
-| Data Engine | Python 3.11+, HomeHarvest, pandas, XGBoost, Flask |
+| Frontend | React 18, Vite 5, Tailwind CSS, React-Leaflet, shadcn/ui |
+| Auth | Clerk |
+| Backend | Node.js, Express 4, pg |
+| Data Engine | Python 3.11+, HomeHarvest, pandas, XGBoost, scikit-learn, LightGBM, Flask |
 | Database | PostgreSQL 15 |
 | Reverse Proxy | Caddy 2 (HTTPS auto-provisioning) |
 | Container | Docker Compose with named volumes |
@@ -40,25 +44,21 @@ Create a `.env` file:
 
 ```env
 DB_PASSWORD=your_secure_password
-DB_USER=realestate_user      # optional, defaults to realestate_user
-DB_NAME=realestate            # optional, defaults to realestate
+DB_USER=realestate_user           # optional, defaults to realestate_user
+DB_NAME=realestate                # optional, defaults to realestate
+
+CLERK_PUBLISHABLE_KEY=pk_live_...
+CLERK_SECRET_KEY=sk_live_...
+VITE_CLERK_PUBLISHABLE_KEY=pk_live_...
 ```
 
 ### Run the Stack
 
 ```bash
-# Pull images and start all services
 docker compose up
-
-# First run will initialize the database automatically
-# The app will be available at http://localhost (port 80)
 ```
 
-### Dev Mode (hot reload)
-
-```bash
-docker compose -f docker-compose.yml -f docker-compose.dev.yml up
-```
+The app will be available at `http://localhost` (or your domain over HTTPS via Caddy).
 
 ---
 
@@ -66,11 +66,11 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up
 
 | Service | Description | Port |
 |---------|-------------|------|
-| `frontend` | React app served via Caddy | 80 / 443 |
+| `frontend` | React app served via nginx | 3000 (internal) |
 | `backend` | Express REST API | 4000 (internal) |
 | `data-worker` | Python scraper + ML engine (Flask) | 5000 (internal) |
 | `db` | PostgreSQL 15 | 5432 (internal) |
-| `caddy` | Reverse proxy + TLS | 80, 443 |
+| `caddy` | Reverse proxy + TLS termination | 80, 443 |
 
 ---
 
@@ -78,51 +78,73 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/opportunities` | GET | Returns GeoJSON FeatureCollection of scored properties |
-| `/api/scrape/trigger` | POST | Triggers a data-worker scrape job |
-| `/api/export/csv` | GET | Exports filtered opportunities as CSV |
+| `/api/opportunities` | GET | GeoJSON FeatureCollection of scored properties |
+| `/api/stats` | GET | Aggregate KPIs (totals, model R², last run) |
+| `/api/scrape/trigger` | POST | Trigger a scrape job |
+| `/api/scrape/status` | GET | Per-market property counts by listing type |
+| `/api/ml/train` | POST | Start a model training run |
+| `/api/ml/score` | POST | Score all for-sale candidates |
+| `/api/ml/status` | GET | Active model info + unscored counts |
+| `/api/ml/models` | GET | List all trained models |
+| `/api/ml/results` | GET | Opportunity score distribution |
+| `/api/jobs` | GET | List recent jobs |
+| `/api/jobs/:id` | GET | Poll a specific job's logs and status |
+| `/api/export/csv` | GET | Export filtered opportunities as CSV |
 
 **Query params for `/api/opportunities`:** `zip`, `min_roi`, `max_year_built`, `limit`
 
 ---
 
-## Running the Scraper Manually
-
-```bash
-# Scrape a specific ZIP and date range
-docker compose run data-worker python scraper.py --zip 33629 --start 2023-01 --end 2023-03
-```
-
-Scrapes are chunked by month to stay under Realtor.com's result cap. A random 2–5 second delay is applied between requests.
-
----
-
 ## ML Model
 
-The XGBoost model is trained on comparable new builds and predicts post-rebuild market value. The opportunity score formula:
+The model is trained on new-build sold comps and predicts post-rebuild market value. Four algorithms are supported: `xgboost` (default), `random_forest`, `ridge`, `lightgbm`.
+
+**Opportunity score formula:**
 
 ```
-opportunity_result = predicted_rebuild_value − (acquisition_cost + construction_cost)
+opportunity_result = predicted_rebuild_value − (list_price + sqft × construction_cost_per_sqft)
 ```
 
-- `acquisition_cost` = sold price (or list price if unsold)
-- `construction_cost` = sqft × $175/sqft (Florida market rate)
+- `construction_cost_per_sqft` defaults to $175/sqft (Florida market rate)
 - Positive score = potentially profitable teardown candidate
 
-ROI color coding on the map:
-- **Green** - opportunity > $200k
-- **Yellow** - opportunity $0–$200k
-- **Red** - negative opportunity
+**Feature set:** `sqft`, `lot_sqft`, `year_built`, `median_household_income`, `zip`, `avg_new_build_price_sqft_05mi`
+
+The geospatial feature (`avg_new_build_price_sqft_05mi`) is computed per-property using a 0.5-mile haversine radius against the sold dataset.
+
+**ROI color coding on the map:**
+- **Green** — opportunity > $200k
+- **Yellow** — opportunity $0–$200k
+- **Red** — negative opportunity
+
+A weighted scoring mode is also available, which skips ML training and scores candidates using manually assigned feature weights.
 
 ---
 
 ## Data Persistence
 
-PostgreSQL data is stored in a named Docker volume (`realestateoportunity_postgres_data`) and **survives `docker compose down`**. To fully wipe the database:
+PostgreSQL data is stored in a named Docker volume (`realestateoportunity_postgres_data`) and **survives `docker compose down`**.
+
+To wipe the database intentionally:
 
 ```bash
 docker compose down -v
 ```
+
+> **Warning:** using `-v` on a deploy command will destroy all scraped data. The safe deploy command is:
+> ```bash
+> docker compose down && docker compose pull && docker compose up -d
+> ```
+
+---
+
+## Testing
+
+| Layer | Runner | Command |
+|-------|--------|---------|
+| Frontend (React/Vite) | Vitest 2 + RTL + happy-dom | `cd client && npm test` |
+| Backend (Express) | Jest 29 + Supertest | `cd server && npm test` |
+| Python data engine | pytest 8 + pytest-mock | `cd data-engine && python3 -m pytest` |
 
 ---
 
@@ -130,24 +152,20 @@ docker compose down -v
 
 ```
 .
-├── client/          # React frontend
-├── server/          # Express backend
-├── data-engine/     # Python scraper, cleaner, ML model
+├── client/               # React frontend (Vite, Tailwind, shadcn/ui)
+│   ├── src/pages/        # Home, Dashboard (map), Operations, Reporting, Help
+│   └── nginx.conf        # Serves static build + proxies /api to backend
+├── server/               # Express backend
+│   └── routes/           # opportunities, scrape, ml, jobs, stats, export
+├── data-engine/          # Python scraper, cleaner, ML model
 │   ├── scraper.py        # Fetches MLS data via HomeHarvest
 │   ├── cleaner.py        # Data quality filters
 │   ├── census_fetcher.py # ZIP-level income from Census API
-│   ├── ml_model.py       # XGBoost training + scoring
-│   └── db.py             # PostgreSQL connection & upserts
-├── db/              # init.sql schema
+│   ├── ml_model.py       # Training, scoring, weighted scoring
+│   ├── runner.py         # Flask job runner (called by backend)
+│   └── db.py             # PostgreSQL connection & queries
+├── db/
+│   └── init.sql          # Schema and seed structure
 ├── docker-compose.yml
 └── Caddyfile
-```
-
----
-
-## Verify Data Survived a Restart
-
-```bash
-docker compose down && docker compose up
-curl http://localhost/api/opportunities
 ```

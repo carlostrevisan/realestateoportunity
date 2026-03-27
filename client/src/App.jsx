@@ -14,9 +14,9 @@ import {
 
 const NAV_ITEMS = [
   { to: "/",          label: "Home",        end: true },
-  { to: "/reporting", label: "Reports"               },
   { to: "/map",       label: "Map"                   },
   { to: "/ops",       label: "Data Engine"            },
+  { to: "/reporting", label: "Reports"               },
   { to: "/help",      label: "Guide"                  },
 ];
 
@@ -104,7 +104,7 @@ function AppNav() {
 
         {/* Hamburger - below lg */}
         <button
-          className="lg:hidden flex flex-col justify-center items-center w-8 h-8 gap-1.5 rounded hover:bg-plt-hover/50 transition-colors flex-shrink-0"
+          className="lg:hidden flex flex-col justify-center items-center w-8 h-8 gap-1.5 rounded hover:bg-plt-hover/50 transition-colors flex-shrink-0 -mr-1"
           onClick={() => setMenuOpen(o => !o)}
           aria-label="Toggle menu"
         >

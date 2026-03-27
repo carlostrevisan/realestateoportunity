@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useAuth } from "@clerk/react";
-import { Label, StatusDot, Btn, StatusBadge } from "../components/UI.jsx";
+import { Label, Val, StatusDot, Btn, StatusBadge } from "../components/UI.jsx";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
@@ -858,6 +858,34 @@ function IntelControls({ onJob, models, fetchModels, isSignedIn }) {
   );
 }
 
+// ── Engine HUD ────────────────────────────────────────────────────────
+
+function EngineHUD({ mlStatus, scrapeStatus }) {
+  const soldTotal    = scrapeStatus.filter(r => r.listing_type === "sold").reduce((s, r) => s + parseInt(r.property_count), 0);
+  const forSaleTotal = scrapeStatus.filter(r => r.listing_type === "for_sale").reduce((s, r) => s + parseInt(r.property_count), 0);
+  const unscored     = mlStatus?.counts?.for_sale?.unscored ?? 0;
+  const r2           = mlStatus?.train?.r2_score;
+
+  const stats = [
+    { label: "Sold History",    val: soldTotal.toLocaleString(),           green: soldTotal > 0 },
+    { label: "Active Listings", val: forSaleTotal.toLocaleString(),         green: forSaleTotal > 0 },
+    { label: "Pending Score",   val: unscored.toLocaleString(),             yellow: unscored > 0 },
+    { label: "R² Accuracy",    val: r2 ? parseFloat(r2).toFixed(4) : "-", green: r2 > 0.8 },
+    { label: "System",          val: "Nominal" },
+  ];
+
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+      {stats.map(s => (
+        <div key={s.label} className="bg-white border border-plt-border px-4 py-3.5 rounded-xl shadow-sm">
+          <div className="text-[9px] font-bold uppercase tracking-widest text-plt-muted mb-1.5">{s.label}</div>
+          <Val lg green={s.green} yellow={s.yellow}>{s.val}</Val>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ── Root ──────────────────────────────────────────────────────────────
 
 export default function Operations() {
@@ -865,6 +893,8 @@ export default function Operations() {
   const [jobs, setJobs] = useState([]);
   const [activeJobId, setActiveJobId] = useState(null);
   const [models, setModels] = useState([]);
+  const [mlStatus, setMlStatus] = useState(null);
+  const [scrapeStatus, setScrapeStatus] = useState([]);
 
   const fetchModels = useCallback(async () => {
     try {
@@ -880,15 +910,30 @@ export default function Operations() {
     } catch {}
   }, []);
 
+  const fetchEngineStatus = useCallback(async () => {
+    try {
+      const [ml, sc] = await Promise.all([
+        fetch(`${API}/api/ml/status`).then(r => r.json()),
+        fetch(`${API}/api/scrape/status`).then(r => r.json()),
+      ]);
+      setMlStatus(ml);
+      setScrapeStatus(sc.scrape_status || []);
+    } catch {}
+  }, []);
+
   useEffect(() => {
     fetchStatus();
     fetchModels();
-    const id = setInterval(() => { fetchStatus(); fetchModels(); }, 15000);
+    fetchEngineStatus();
+    const id = setInterval(() => { fetchStatus(); fetchModels(); fetchEngineStatus(); }, 15000);
     return () => clearInterval(id);
-  }, [fetchStatus, fetchModels]);
+  }, [fetchStatus, fetchModels, fetchEngineStatus]);
 
   return (
     <div className="flex flex-col h-full overflow-y-auto lg:overflow-hidden bg-plt-bg text-plt-primary font-sans selection:bg-plt-accent selection:text-white custom-scrollbar">
+      <div className="px-4 sm:px-6 pt-5 pb-0">
+        <EngineHUD mlStatus={mlStatus} scrapeStatus={scrapeStatus} />
+      </div>
       <div className="flex-1 flex flex-col lg:flex-row lg:overflow-hidden px-4 sm:px-6 py-6 gap-5 min-h-0">
         <div className="flex-1 min-w-0 min-h-[360px] sm:min-h-[480px] lg:min-h-0 flex flex-col">
           <ControlCard onJob={setActiveJobId} models={models} fetchModels={fetchModels} isSignedIn={isSignedIn} />

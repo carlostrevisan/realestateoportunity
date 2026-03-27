@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { useAuth } from "@clerk/react";
 import { Building2, Layers, TrendingUp, BarChart2, Play, RefreshCw } from "lucide-react";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -63,34 +62,6 @@ function KpiCard({ icon: Icon, label, value, subtitle, accentClass }) {
         )}
       </CardContent>
     </Card>
-  );
-}
-
-// ── HUD ───────────────────────────────────────────────────────────────
-
-function HUD({ mlStatus, scrapeStatus }) {
-  const soldTotal = scrapeStatus.filter(r => r.listing_type === "sold").reduce((s, r) => s + parseInt(r.property_count), 0);
-  const forSaleTotal = scrapeStatus.filter(r => r.listing_type === "for_sale").reduce((s, r) => s + parseInt(r.property_count), 0);
-  const unscored = mlStatus?.counts?.for_sale?.unscored ?? 0;
-  const r2 = mlStatus?.train?.r2_score;
-
-  const stats = [
-    { label: "Sold History",    val: soldTotal.toLocaleString(),           green: soldTotal > 0 },
-    { label: "Active Listings", val: forSaleTotal.toLocaleString(),         green: forSaleTotal > 0 },
-    { label: "Pending Score",   val: unscored.toLocaleString(),             yellow: unscored > 0 },
-    { label: "R² Accuracy",    val: r2 ? parseFloat(r2).toFixed(4) : "-", green: r2 > 0.8 },
-    { label: "System",          val: "Nominal" },
-  ];
-
-  return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 font-sans">
-      {stats.map(s => (
-        <div key={s.label} className="bg-white border border-plt-border px-4 py-3.5 rounded-xl shadow-sm">
-          <div className="text-[9px] font-bold uppercase tracking-widest text-plt-muted mb-1.5">{s.label}</div>
-          <Val lg green={s.green} yellow={s.yellow}>{s.val}</Val>
-        </div>
-      ))}
-    </div>
   );
 }
 
@@ -202,12 +173,10 @@ function ResultsChart({ refreshKey }) {
 // ── Reporting ─────────────────────────────────────────────────────────
 
 export default function Reporting() {
-  const { getToken, isSignedIn } = useAuth();
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [mlStatus, setMlStatus] = useState(null);
-  const [scrapeStatus, setScrapeStatus] = useState([]);
   const abortRef = useRef(null);
 
   const loadStats = async (signal) => {
@@ -224,14 +193,10 @@ export default function Reporting() {
     }
   };
 
-  const fetchEngineStatus = useCallback(async () => {
+  const fetchMlStatus = useCallback(async () => {
     try {
-      const [ml, sc] = await Promise.all([
-        fetch(`${API}/api/ml/status`).then(r => r.json()),
-        fetch(`${API}/api/scrape/status`).then(r => r.json()),
-      ]);
+      const ml = await fetch(`${API}/api/ml/status`).then(r => r.json());
       setMlStatus(ml);
-      setScrapeStatus(sc.scrape_status || []);
     } catch {}
   }, []);
 
@@ -243,19 +208,16 @@ export default function Reporting() {
   }, []);
 
   useEffect(() => {
-    fetchEngineStatus();
-    const id = setInterval(fetchEngineStatus, 8000);
+    fetchMlStatus();
+    const id = setInterval(fetchMlStatus, 15000);
     return () => clearInterval(id);
-  }, [fetchEngineStatus]);
+  }, [fetchMlStatus]);
 
   const s = stats;
 
   return (
     <div className="flex-1 overflow-y-auto bg-plt-bg p-5 md:p-7 font-sans">
       <div className="max-w-5xl mx-auto space-y-6">
-
-        {/* ── System HUD ── */}
-        <HUD mlStatus={mlStatus} scrapeStatus={scrapeStatus} />
 
         {/* ── Opportunity Distribution ── */}
         <ResultsChart refreshKey={mlStatus?.score?.completed_at || mlStatus?.score_weighted?.completed_at} />
