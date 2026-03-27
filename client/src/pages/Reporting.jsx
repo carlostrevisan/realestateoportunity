@@ -437,27 +437,7 @@ export default function Reporting() {
                 <div>
                   <Label>Trained on</Label>
                   <Val>{s.last_run.properties_trained?.toLocaleString()}</Val>
-                </div>
-              )}
             </div>
-
-            {isSignedIn && (
-              <div className="flex flex-col items-start sm:items-end gap-1 flex-shrink-0">
-                <button
-                  onClick={handleRerun}
-                  disabled={rerunning}
-                  className="flex items-center gap-2 px-4 py-2 text-xs font-semibold bg-plt-accent text-white rounded-lg hover:bg-plt-accent/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  {rerunning
-                    ? <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Running…</>
-                    : <><Play className="w-3.5 h-3.5" /> Re-run Score</>
-                  }
-                </button>
-                {rerunError && (
-                  <span className="text-[10px] text-plt-danger">{rerunError}</span>
-                )}
-              </div>
-            )}
           </div>
         </Panel>
 
