@@ -1,5 +1,5 @@
 """
-cleaner.py — Data quality filters for raw HomeHarvest output.
+cleaner.py - Data quality filters for raw HomeHarvest output.
 
 All rules defined in CLAUDE.md:
   - property_type: Single Family only
@@ -22,7 +22,7 @@ MAX_PRICE = 5_000_000
 MIN_YEAR_BUILT = 1901
 MAX_SQFT = 5_000
 
-# Pre-compiled — avoids recompiling for every row in the Series
+# Pre-compiled - avoids recompiling for every row in the Series
 _TYPE_RE = re.compile(r"SINGLE.FAMILY|SINGLE_FAMILY", re.IGNORECASE)
 
 
@@ -37,7 +37,7 @@ def clean(df: pd.DataFrame) -> pd.DataFrame:
         Cleaned DataFrame with only valid single-family teardown candidates.
     """
     if df is None or df.empty:
-        logger.warning("[WARN] Received empty DataFrame — skipping")
+        logger.warning("[WARN] Received empty DataFrame - skipping")
         return pd.DataFrame()
 
     original_count = len(df)
@@ -46,14 +46,14 @@ def clean(df: pd.DataFrame) -> pd.DataFrame:
     # Normalize column names (HomeHarvest may vary)
     df.columns = [c.lower().strip() for c in df.columns]
 
-    # 1. Property type — Single Family only
+    # 1. Property type - Single Family only
     type_col = _find_col(df, ["style", "property_type", "home_type", "type"])
     if type_col:
         before = len(df)
         df = df[df[type_col].astype(str).str.contains(_TYPE_RE, na=False)]
         logger.info(f"[DATA] After type filter: {len(df)} rows (dropped {before - len(df)})")
     else:
-        logger.warning("[WARN] No property_type column found — skipping type filter")
+        logger.warning("[WARN] No property_type column found - skipping type filter")
 
     # 2. Price filter ($100k – $5M)
     price_col = _find_col(df, ["list_price", "price", "sold_price"])
@@ -90,14 +90,14 @@ def clean(df: pd.DataFrame) -> pd.DataFrame:
         null_lat = df[lat_col].isna().sum()
         null_lng = df[lng_col].isna().sum()
         if null_lat or null_lng:
-            logger.info(f"[DATA] Null coords — lat: {null_lat}, lng: {null_lng}")
+            logger.info(f"[DATA] Null coords - lat: {null_lat}, lng: {null_lng}")
         df = df[df[lat_col].notna() & df[lng_col].notna()]
         logger.info(f"[DATA] After coords filter: {len(df)} rows (dropped {before - len(df)})")
     else:
-        logger.warning("[WARN] lat/lng columns not found — keeping all rows")
+        logger.warning("[WARN] lat/lng columns not found - keeping all rows")
 
     removed = original_count - len(df)
-    logger.info(f"[DATA] Cleaning done — {len(df)} valid rows ({removed} removed)")
+    logger.info(f"[DATA] Cleaning done - {len(df)} valid rows ({removed} removed)")
 
     return df.reset_index(drop=True)
 
@@ -149,7 +149,7 @@ def normalize_for_db(df: pd.DataFrame, default_zip: str = None) -> list[dict]:
     records = out.where(out.notna(), other=None).to_dict('records')
     missing_mls = sum(1 for r in records if not r.get('mls_id'))
     if missing_mls:
-        logger.warning(f"[WARN] {missing_mls}/{len(records)} rows have no mls_id — they will be skipped on upsert")
+        logger.warning(f"[WARN] {missing_mls}/{len(records)} rows have no mls_id - they will be skipped on upsert")
     logger.info(f"[DATA] Normalized {len(records)} records ready for upsert")
     return records
 

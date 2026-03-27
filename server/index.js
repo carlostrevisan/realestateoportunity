@@ -16,7 +16,7 @@ const reportRouter = require("./routes/report");
 const app = express();
 const PORT = process.env.PORT || 4000;
 
-// Database pool — shared across routes
+// Database pool - shared across routes
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   max: 10,
@@ -40,7 +40,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// Health check — used by Docker healthcheck and load balancers
+// Health check - used by Docker healthcheck and load balancers
 app.get("/health", async (req, res) => {
   try {
     await pool.query("SELECT 1");

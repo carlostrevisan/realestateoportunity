@@ -1,7 +1,7 @@
 import { http, HttpResponse } from "msw";
 
 // ---------------------------------------------------------------------------
-// Fixture data — minimal valid shapes for every API endpoint the app uses
+// Fixture data - minimal valid shapes for every API endpoint the app uses
 // ---------------------------------------------------------------------------
 
 const FILTERS_FIXTURE = {
@@ -76,7 +76,7 @@ const JOBS_FIXTURE = [
 ];
 
 // ---------------------------------------------------------------------------
-// MSW handlers — intercept fetch() calls from the React components
+// MSW handlers - intercept fetch() calls from the React components
 // ---------------------------------------------------------------------------
 
 export const handlers = [

@@ -1,5 +1,5 @@
 """
-test_db.py — Unit tests for db.py database operations.
+test_db.py - Unit tests for db.py database operations.
 
 Strategy: Every test mocks psycopg2.connect() so no real PostgreSQL instance
 is needed. The mock cursor captures SQL calls and returns controlled fixture
@@ -56,7 +56,7 @@ class TestUpsertProperties:
         # Act
         count = db.upsert_properties([], "for_sale")
 
-        # Assert — nothing was written, no DB call needed
+        # Assert - nothing was written, no DB call needed
         assert count == 0
 
     def test_returns_count_of_records_inserted(self, mock_cursor):
@@ -88,7 +88,7 @@ class TestUpsertProperties:
         # Act
         db.upsert_properties(records, "sold")
 
-        # Assert — the listing_type was stamped on the record before the DB call
+        # Assert - the listing_type was stamped on the record before the DB call
         assert records[0]["listing_type"] == "sold"
 
     def test_calls_execute_batch(self, mocker, mock_cursor):
@@ -105,7 +105,7 @@ class TestUpsertProperties:
         # Act
         db.upsert_properties(records, "for_sale")
 
-        # Assert — execute_batch was called once with the correct arguments
+        # Assert - execute_batch was called once with the correct arguments
         assert mock_batch.call_count == 1
         _, args, kwargs = mock_batch.mock_calls[0]
         # args: (cursor, sql, records, page_size=100)
@@ -148,7 +148,7 @@ class TestCheckChunkCompleted:
         # Act
         db.check_chunk_completed("orlando", 6, 2024, "for_sale")
 
-        # Assert — the cursor was called with the right positional params
+        # Assert - the cursor was called with the right positional params
         call_args = mock_cursor.execute.call_args
         sql, params = call_args[0]
         assert "scrape_log" in sql
@@ -179,7 +179,7 @@ class TestStartModelRun:
         # Act
         db.start_model_run("score")
 
-        # Assert — SQL contains RETURNING id and run_type
+        # Assert - SQL contains RETURNING id and run_type
         call_args = mock_cursor.execute.call_args
         sql, params = call_args[0]
         assert "RETURNING id" in sql
@@ -200,7 +200,7 @@ class TestWriteOpportunityScores:
         # Act
         db.write_opportunity_scores([])
 
-        # Assert — no DB call made
+        # Assert - no DB call made
         mock_batch.assert_not_called()
 
     def test_calls_execute_batch_with_update_sql(self, mocker, mock_cursor):
@@ -235,7 +235,7 @@ class TestFailModelRun:
         # Act
         db.fail_model_run(run_id=3, error="XGBoost: insufficient training data")
 
-        # Assert — SQL sets status='failed'
+        # Assert - SQL sets status='failed'
         call_args = mock_cursor.execute.call_args
         sql, params = call_args[0]
         assert "failed" in sql

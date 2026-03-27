@@ -16,7 +16,7 @@ const { Pool } = require("pg");
 const opportunitiesRouter = require("../routes/opportunities");
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Test app factory — builds a minimal Express app wired with the real
+// Test app factory - builds a minimal Express app wired with the real
 // opportunities router and a mocked DB pool. No listen() call is made;
 // Supertest handles that internally.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -222,7 +222,7 @@ describe("GET /api/opportunities", () => {
     // Act
     const res = await request(app).get("/api/opportunities");
 
-    // Assert — GeoJSON spec: coordinates = [longitude, latitude]
+    // Assert - GeoJSON spec: coordinates = [longitude, latitude]
     const [lng, lat] = res.body.features[0].geometry.coordinates;
     expect(lng).toBeCloseTo(-82.458, 2);
     expect(lat).toBeCloseTo(27.948, 2);

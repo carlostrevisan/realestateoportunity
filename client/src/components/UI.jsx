@@ -1,4 +1,4 @@
-// ── Shared UI Primitives — RE Opportunity Engine ──────────────────────
+// ── Shared UI Primitives - RE Opportunity Engine ──────────────────────
 // Single source of truth for all reusable atoms across the application.
 
 import { Label as ShadLabel } from "./ui/label";
@@ -50,7 +50,7 @@ export function Panel({ title, tag, children }) {
   );
 }
 
-// Btn — shadcn Button wrapper with variant mapping + data-variant for testability
+// Btn - shadcn Button wrapper with variant mapping + data-variant for testability
 const VARIANT_MAP = {
   primary: "default",
   success: "success",
@@ -73,7 +73,7 @@ export function Btn({ children, onClick, disabled, variant = "primary", classNam
   );
 }
 
-// StatusBadge — job history chip using shadcn Badge colors
+// StatusBadge - job history chip using shadcn Badge colors
 const STATUS_BORDER = {
   running:   "border-l-plt-accent",
   completed: "border-l-plt-success",

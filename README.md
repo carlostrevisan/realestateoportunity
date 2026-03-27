@@ -1,6 +1,6 @@
 # Florida Real Estate Opportunity Engine
 
-A full-stack investment analysis tool that identifies **Buy, Demolish, Rebuild** opportunities across Florida markets. It surfaces aging single-family homes where lot value + new construction costs ≈ 3× the current property value — pinpointing profitable teardown candidates on an interactive map.
+A full-stack investment analysis tool that identifies **Buy, Demolish, Rebuild** opportunities across Florida markets. It surfaces aging single-family homes where lot value + new construction costs ≈ 3× the current property value - pinpointing profitable teardown candidates on an interactive map.
 
 ---
 
@@ -110,9 +110,9 @@ opportunity_result = predicted_rebuild_value − (acquisition_cost + constructio
 - Positive score = potentially profitable teardown candidate
 
 ROI color coding on the map:
-- **Green** — opportunity > $200k
-- **Yellow** — opportunity $0–$200k
-- **Red** — negative opportunity
+- **Green** - opportunity > $200k
+- **Yellow** - opportunity $0–$200k
+- **Red** - negative opportunity
 
 ---
 

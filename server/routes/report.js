@@ -7,7 +7,7 @@ const WORKER_URL = process.env.WORKER_URL || "http://data-worker:5000";
 /**
  * POST /api/report
  * Starts a PDF report generation job and returns { job_id }.
- * Body: filter params — city, zip, min_roi, max_year_built, listing_type
+ * Body: filter params - city, zip, min_roi, max_year_built, listing_type
  */
 router.post("/", requireAuth, async (req, res) => {
   try {

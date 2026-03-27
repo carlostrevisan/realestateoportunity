@@ -27,7 +27,7 @@ const PIE_COLORS = [
 ];
 
 function fmtDate(iso) {
-  if (!iso) return "—";
+  if (!iso) return "-";
   return new Date(iso).toLocaleString([], {
     month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
   });
@@ -56,7 +56,7 @@ function KpiCard({ icon: Icon, label, value, subtitle, accentClass }) {
       </CardHeader>
       <CardContent className="px-5 pb-4">
         <div className="text-2xl font-black tracking-tighter text-plt-primary font-sans">
-          {value ?? "—"}
+          {value ?? "-"}
         </div>
         {subtitle && (
           <p className="text-[10px] text-plt-muted mt-0.5 font-sans">{subtitle}</p>
@@ -78,7 +78,7 @@ function HUD({ mlStatus, scrapeStatus }) {
     { label: "Sold History",    val: soldTotal.toLocaleString(),           green: soldTotal > 0 },
     { label: "Active Listings", val: forSaleTotal.toLocaleString(),         green: forSaleTotal > 0 },
     { label: "Pending Score",   val: unscored.toLocaleString(),             yellow: unscored > 0 },
-    { label: "R² Accuracy",    val: r2 ? parseFloat(r2).toFixed(4) : "—", green: r2 > 0.8 },
+    { label: "R² Accuracy",    val: r2 ? parseFloat(r2).toFixed(4) : "-", green: r2 > 0.8 },
     { label: "System",          val: "Nominal" },
   ];
 
@@ -303,14 +303,14 @@ export default function Reporting() {
           <KpiCard
             icon={TrendingUp}
             label="Avg Opportunity"
-            value={loading ? "…" : s?.avg_price_diff_pct != null ? `${s.avg_price_diff_pct}%` : "—"}
+            value={loading ? "…" : s?.avg_price_diff_pct != null ? `${s.avg_price_diff_pct}%` : "-"}
             subtitle="Avg result / list price"
             accentClass="bg-amber-50 text-amber-600"
           />
           <KpiCard
             icon={BarChart2}
             label="Model R²"
-            value={loading ? "…" : s?.model_r2 != null ? s.model_r2.toFixed(3) : "—"}
+            value={loading ? "…" : s?.model_r2 != null ? s.model_r2.toFixed(3) : "-"}
             subtitle="Active model accuracy"
             accentClass="bg-purple-50 text-purple-600"
           />
@@ -410,13 +410,13 @@ export default function Reporting() {
             <div className="flex-1 grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-3">
               <div>
                 <Label>Type</Label>
-                <Val>{s?.last_run?.run_type?.toUpperCase() ?? "—"}</Val>
+                <Val>{s?.last_run?.run_type?.toUpperCase() ?? "-"}</Val>
               </div>
               <div>
                 <Label>Status</Label>
                 <div className="flex items-center gap-1.5 mt-0.5">
                   {s?.last_run?.status && <StatusDot status={s.last_run.status} />}
-                  <Val>{s?.last_run?.status ?? "—"}</Val>
+                  <Val>{s?.last_run?.status ?? "-"}</Val>
                 </div>
               </div>
               <div>

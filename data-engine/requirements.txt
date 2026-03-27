@@ -5,6 +5,8 @@ sqlalchemy==2.0.25
 python-dateutil==2.8.2
 python-dotenv==1.0.0
 requests==2.32.5
+urllib3>=1.26.0,<3
+charset-normalizer>=2.0.0,<4
 xgboost==2.0.3
 scikit-learn==1.4.0
 lightgbm==4.3.0

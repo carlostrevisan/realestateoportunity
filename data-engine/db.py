@@ -1,5 +1,5 @@
 """
-db.py — Single source of truth for all PostgreSQL operations.
+db.py - Single source of truth for all PostgreSQL operations.
 """
 
 import os
@@ -167,7 +167,7 @@ def fetch_all_existing_mls_ids() -> set[str]:
 
 
 def fetch_sold_mls_ids() -> set[str]:
-    """Returns only MLS IDs already stored as sold — used to skip re-processing sold history."""
+    """Returns only MLS IDs already stored as sold - used to skip re-processing sold history."""
     with get_cursor() as cur:
         cur.execute("SELECT mls_id FROM properties WHERE mls_id IS NOT NULL AND listing_type = 'sold'")
         return {str(row["mls_id"]) for row in cur.fetchall()}

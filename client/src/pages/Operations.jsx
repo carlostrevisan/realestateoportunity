@@ -71,7 +71,7 @@ const OP_TYPE_COLOR = {
 };
 
 function fmtDate(iso) {
-  if (!iso) return "—";
+  if (!iso) return "-";
   return new Date(iso).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
@@ -129,7 +129,7 @@ function OpsHistory() {
               {typeLabel}
             </span>
             <span className="flex-1 text-[11px] text-plt-secondary truncate min-w-0">
-              {detail || op.name || "—"}
+              {detail || op.name || "-"}
             </span>
             {isFailed && op.error_message && (
               <span className="text-[10px] text-plt-danger truncate max-w-[120px]">{op.error_message}</span>
@@ -411,7 +411,7 @@ function WeightedScoringModal({ open, onClose, onJob }) {
         </DialogHeader>
         <div className="overflow-y-auto max-h-[60vh] space-y-5">
           <div className={`p-3 rounded-lg text-center text-xs font-semibold border ${total === 100 ? "bg-plt-success/10 border-plt-success/20 text-plt-success" : "bg-plt-warning/10 border-plt-warning/20 text-plt-warning"}`}>
-            Total: {total}%{total !== 100 && " — will be auto-normalized"}
+            Total: {total}%{total !== 100 && " - will be auto-normalized"}
           </div>
           {Object.entries(weights).map(([key, val]) => (
             <div key={key} className="flex items-center justify-between gap-4 group">
@@ -687,7 +687,7 @@ function IntelControls({ onJob, models, fetchModels, isSignedIn }) {
             {models.map(m => {
               const isActive = m.is_active;
               const isExpanded = expandedId === m.id;
-              const dateStr = m.started_at ? new Date(m.started_at).toLocaleDateString([], { month: "short", day: "numeric", year: "2-digit" }) : "—";
+              const dateStr = m.started_at ? new Date(m.started_at).toLocaleDateString([], { month: "short", day: "numeric", year: "2-digit" }) : "-";
               const r2 = m.r2_score ? parseFloat(m.r2_score).toFixed(4) : "N/A";
               const displayName = m.name || `Model #${m.id.toString().substring(0, 6)}`;
               const edit = editFields[m.id] || { name: "", description: "" };

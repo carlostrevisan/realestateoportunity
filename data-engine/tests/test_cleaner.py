@@ -1,5 +1,5 @@
 """
-test_cleaner.py — Unit tests for cleaner.py data quality filters.
+test_cleaner.py - Unit tests for cleaner.py data quality filters.
 
 Each test exercises one filter rule in isolation using a small, hand-crafted
 DataFrame. The goal is to verify that:
@@ -63,7 +63,7 @@ class TestEmptyInput:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Property type filter — Single Family only
+# Property type filter - Single Family only
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestPropertyTypeFilter:
@@ -101,7 +101,7 @@ class TestPropertyTypeFilter:
         assert result.empty
 
     def test_mixed_types_only_keeps_single_family(self):
-        # Arrange — 1 valid row and 2 invalid rows
+        # Arrange - 1 valid row and 2 invalid rows
         df = df_from_rows(
             make_row(style="SINGLE_FAMILY"),
             make_row(style="CONDO"),
@@ -114,7 +114,7 @@ class TestPropertyTypeFilter:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Price filter — $100k to $5M
+# Price filter - $100k to $5M
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestPriceFilter:
@@ -140,7 +140,7 @@ class TestPriceFilter:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Year built filter — must be > 1901
+# Year built filter - must be > 1901
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestYearBuiltFilter:
@@ -173,7 +173,7 @@ class TestYearBuiltFilter:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Square footage filter — must be < 5,000
+# Square footage filter - must be < 5,000
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestSqftFilter:
@@ -200,7 +200,7 @@ class TestSqftFilter:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Coordinates filter — lat and lng must be non-null
+# Coordinates filter - lat and lng must be non-null
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestCoordinatesFilter:
@@ -227,15 +227,15 @@ class TestCoordinatesFilter:
 
 class TestMultipleFilterInteraction:
     def test_row_failing_two_rules_is_removed_once(self):
-        # Arrange — fails both price and year_built rules
+        # Arrange - fails both price and year_built rules
         df = df_from_rows(make_row(list_price=50_000, year_built=1900))
         # Act
         result = clean(df)
-        # Assert — row is gone, but the result is still a valid (empty) DataFrame
+        # Assert - row is gone, but the result is still a valid (empty) DataFrame
         assert result.empty
 
     def test_all_valid_rows_survive_all_filters(self):
-        # Arrange — 3 valid rows
+        # Arrange - 3 valid rows
         df = df_from_rows(
             make_row(style="SINGLE_FAMILY", list_price=300_000, year_built=1980, sqft=1_500, latitude=27.9, longitude=-82.4),
             make_row(style="SINGLE_FAMILY", list_price=500_000, year_built=1955, sqft=2_200, latitude=28.0, longitude=-81.9),
@@ -243,7 +243,7 @@ class TestMultipleFilterInteraction:
         )
         # Act
         result = clean(df)
-        # Assert — all 3 survive
+        # Assert - all 3 survive
         assert len(result) == 3
 
 
@@ -279,7 +279,7 @@ class TestNormalizeForDb:
         assert len(result) == 1
 
     def test_mls_id_is_cast_to_string(self):
-        # Arrange — mls_id as an integer (as HomeHarvest sometimes returns)
+        # Arrange - mls_id as an integer (as HomeHarvest sometimes returns)
         df = self._valid_df()
         df["mls_id"] = 12345  # integer
         result = normalize_for_db(df)

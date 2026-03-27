@@ -252,7 +252,7 @@ router.get("/results", requireAuth, async (req, res) => {
 /**
  * GET /api/ml/ops-log
  * Returns a unified, chronologically sorted log of all operations from the DB
- * (model_runs + scrape_log). Persistent across restarts — unlike in-memory job logs.
+ * (model_runs + scrape_log). Persistent across restarts - unlike in-memory job logs.
  */
 router.get("/ops-log", requireAuth, async (req, res) => {
   const db = req.app.locals.db;

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-report_generator.py — Generates a PDF summary report for the RE Opportunity Engine.
+report_generator.py - Generates a PDF summary report for the RE Opportunity Engine.
 
 Produces:
   - A multi-page PDF with KPIs, model metrics, top-20 candidates table,
@@ -259,7 +259,7 @@ def _make_distribution_png(top20) -> io.BytesIO:
                 transform=ax.transAxes, color=M_MUTED)
     else:
         labels = [
-            f"{r['address'][:22]}…" if len(r["address"] or "") > 24 else (r["address"] or "—")
+            f"{r['address'][:22]}…" if len(r["address"] or "") > 24 else (r["address"] or "-")
             for r in top20
         ]
         values = [float(r["opportunity_result"] or 0) for r in top20]
@@ -376,19 +376,19 @@ def _styles():
 
 
 def _fmt_money(val):
-    if val is None: return "—"
+    if val is None: return "-"
     v = float(val)
     sign = "+" if v > 0 else ""
     return f"{sign}${abs(v):,.0f}"
 
 
 def _fmt_k(val):
-    if val is None: return "—"
+    if val is None: return "-"
     return f"${float(val) / 1000:,.0f}k"
 
 
 def _fmt_date(dt_val):
-    if dt_val is None: return "—"
+    if dt_val is None: return "-"
     return dt_val.strftime("%b %d, %Y %H:%M") if hasattr(dt_val, "strftime") else str(dt_val)[:16]
 
 
@@ -411,7 +411,7 @@ def _build_pdf(data: dict, output_path: str):
         pagesize=A4,
         leftMargin=1.5 * cm, rightMargin=1.5 * cm,
         topMargin=1.5 * cm,  bottomMargin=1.5 * cm,
-        title="RE Opportunity Engine — Report",
+        title="RE Opportunity Engine - Report",
         author="RE Opportunity Engine",
     )
 
@@ -448,7 +448,7 @@ def _build_pdf(data: dict, output_path: str):
     # ── KPI cards ─────────────────────────────────────────────────────────────
     model    = data["model"] or {}
     r2       = float(model.get("r2_score") or 0)
-    r2_str   = f"{r2:.3f}" if model else "—"
+    r2_str   = f"{r2:.3f}" if model else "-"
 
     kpi_items = [
         ("TOTAL PROPERTIES", f"{data['total_properties']:,}",    "All ingested records",  C_ACCENT),
@@ -491,21 +491,21 @@ def _build_pdf(data: dict, output_path: str):
     story.append(Paragraph("MODEL & PIPELINE STATUS", S["section"]))
     story.append(HRFlowable(width=W, thickness=0.5, color=C_BORDER, spaceAfter=4 * mm))
 
-    alg = (model.get("algorithm") or "—").upper()
+    alg = (model.get("algorithm") or "-").upper()
     lr  = data["last_run"] or {}
     meta_data = [
         [Paragraph("Algorithm",          S["muted"]),
          Paragraph(alg,                  S["body"]),
          Paragraph("Last Run Type",      S["muted"]),
-         Paragraph((lr.get("run_type") or "—").upper(), S["body"])],
+         Paragraph((lr.get("run_type") or "-").upper(), S["body"])],
         [Paragraph("R² Score",           S["muted"]),
          Paragraph(r2_str,               S["body"]),
          Paragraph("Last Run Status",    S["muted"]),
-         Paragraph((lr.get("status") or "—").upper(), S["body"])],
+         Paragraph((lr.get("status") or "-").upper(), S["body"])],
         [Paragraph("Trained On",         S["muted"]),
-         Paragraph(f"{model.get('properties_trained') or '—':,}" if model.get('properties_trained') else "—", S["body"]),
+         Paragraph(f"{model.get('properties_trained') or '-':,}" if model.get('properties_trained') else "-", S["body"]),
          Paragraph("Scored",             S["muted"]),
-         Paragraph(f"{lr.get('properties_scored') or '—':,}" if lr.get('properties_scored') else "—", S["body"])],
+         Paragraph(f"{lr.get('properties_scored') or '-':,}" if lr.get('properties_scored') else "-", S["body"])],
         [Paragraph("Training Date",      S["muted"]),
          Paragraph(_fmt_date(model.get("completed_at")), S["body"]),
          Paragraph("Last Run Completed", S["muted"]),
@@ -548,16 +548,16 @@ def _build_pdf(data: dict, output_path: str):
         val_p  = ParagraphStyle("val_p",  parent=S["td_right"],
                                 textColor=val_c,  fontName="Helvetica-Bold")
 
-        addr = (r["address"] or "—")
+        addr = (r["address"] or "-")
         if len(addr) > 28: addr = addr[:26] + "…"
 
         rows.append([
             Paragraph(str(i),                             S["td"]),
             Paragraph(addr,                               S["td"]),
-            Paragraph((r["city"] or "—").replace("_"," ").title()[:12], S["td"]),
-            Paragraph(str(r["zip"] or "—"),               S["td"]),
-            Paragraph(str(r["year_built"] or "—"),        S["td"]),
-            Paragraph(f"{int(r['sqft']):,}" if r["sqft"] else "—", S["td"]),
+            Paragraph((r["city"] or "-").replace("_"," ").title()[:12], S["td"]),
+            Paragraph(str(r["zip"] or "-"),               S["td"]),
+            Paragraph(str(r["year_built"] or "-"),        S["td"]),
+            Paragraph(f"{int(r['sqft']):,}" if r["sqft"] else "-", S["td"]),
             Paragraph(_fmt_k(r["list_price"]),            S["td_right"]),
             Paragraph(_fmt_k(r["predicted_rebuild_value"]), S["td_right"]),
             Paragraph(_fmt_money(val),                    val_p),
@@ -594,7 +594,7 @@ def _build_pdf(data: dict, output_path: str):
     ))
     story.append(Spacer(1, 6 * mm))
 
-    story.append(Paragraph("OPPORTUNITY DISTRIBUTION — TOP 20", S["section"]))
+    story.append(Paragraph("OPPORTUNITY DISTRIBUTION - TOP 20", S["section"]))
     story.append(HRFlowable(width=W, thickness=0.5, color=C_BORDER, spaceAfter=4 * mm))
     dist_buf = _make_distribution_png(data["top20"])
     dist_img = Image(dist_buf, width=W, height=W * 0.55)
@@ -655,7 +655,7 @@ def main():
     except Exception as e:
         logger.warning(f"[report] Folium map skipped: {e}")
 
-    logger.info(f"[report] Done — job {args.job_id}")
+    logger.info(f"[report] Done - job {args.job_id}")
 
 
 if __name__ == "__main__":

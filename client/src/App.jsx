@@ -27,7 +27,7 @@ function MobileMenu({ open, onClose }) {
 
   return (
     <div
-      className={`absolute top-12 left-0 right-0 bg-white/97 backdrop-blur-md border-b border-plt-border shadow-lg z-[1999] flex flex-col overflow-hidden transition-all duration-200 ease-out ${
+      className={`fixed top-12 left-0 right-0 bg-white/97 backdrop-blur-md border-b border-plt-border shadow-lg z-[2100] flex flex-col overflow-hidden transition-all duration-200 ease-out ${
         open ? "max-h-96 py-2 opacity-100" : "max-h-0 py-0 opacity-0 pointer-events-none"
       }`}
     >
@@ -81,14 +81,14 @@ function AppNav() {
         </span>
       </div>
 
-      {/* Desktop nav links — shown at lg+ where there's enough room for 5 items */}
+      {/* Desktop nav links - shown at lg+ where there's enough room for 5 items */}
       <div className="hidden lg:flex h-full items-stretch">
         {NAV_ITEMS.map(({ to, label, end }) => (
           <NavLink key={to} to={to} end={end} className={navClass}>{label}</NavLink>
         ))}
       </div>
 
-      {/* Auth — always right side */}
+      {/* Auth - always right side */}
       <div className="ml-auto flex items-center gap-2 sm:gap-3">
         <Show when="signed-out">
           <SignInButton mode="modal">
@@ -102,7 +102,7 @@ function AppNav() {
           <UserButton />
         </Show>
 
-        {/* Hamburger — below lg */}
+        {/* Hamburger - below lg */}
         <button
           className="lg:hidden flex flex-col justify-center items-center w-8 h-8 gap-1.5 rounded hover:bg-plt-hover/50 transition-colors flex-shrink-0"
           onClick={() => setMenuOpen(o => !o)}

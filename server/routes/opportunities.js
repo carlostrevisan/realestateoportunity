@@ -124,7 +124,7 @@ router.get("/", async (req, res) => {
   const conditions = ["lat IS NOT NULL", "lng IS NOT NULL"];
   const params = [];
 
-  // Default to for_sale — the active listings with opportunity scores
+  // Default to for_sale - the active listings with opportunity scores
   if (listingType !== "all") {
     params.push(listingType);
     conditions.push(`listing_type = $${params.length}`);

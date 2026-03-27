@@ -1,5 +1,5 @@
 """
-ml_model.py — XGBoost training and scoring logic + Weighted Scoring + Geospatial Features.
+ml_model.py - XGBoost training and scoring logic + Weighted Scoring + Geospatial Features.
 """
 
 import argparse
@@ -23,7 +23,7 @@ import db
 # Updated feature set
 FEATURE_COLS = ['sqft', 'lot_sqft', 'year_built', 'median_household_income', 'zip', 'avg_new_build_price_sqft_05mi']
 
-# Module-level constants — replace magic numbers throughout
+# Module-level constants - replace magic numbers throughout
 NEARBY_RADIUS_MILES       = 0.5
 BBOX_MARGIN_DEGREES       = 0.015
 CONSTRUCTION_COST_DEFAULT = 175.0
@@ -129,7 +129,7 @@ def calculate_geospatial_features(df, reference_df, batch_size=50):
     zip_avgs     = {z: float(ref_prices[ref_zips == z].mean()) for z in np.unique(ref_zips)}
     zip_fallback = np.array([zip_avgs.get(z, global_avg) for z in df_zips])
 
-    # NEARBY_RADIUS_MILES ≈ 0.0072° lat at Florida latitudes — BBOX_MARGIN_DEGREES gives buffer
+    # NEARBY_RADIUS_MILES ≈ 0.0072° lat at Florida latitudes - BBOX_MARGIN_DEGREES gives buffer
 
     result = np.where(has_coords, zip_fallback, 0.0)  # default to zip avg
 
@@ -143,7 +143,7 @@ def calculate_geospatial_features(df, reference_df, batch_size=50):
         if not b_has.any():
             continue
 
-        # Bounding-box pre-filter — shrinks ref dramatically before haversine
+        # Bounding-box pre-filter - shrinks ref dramatically before haversine
         lat_min = np.nanmin(b_lats[b_has]) - BBOX_MARGIN_DEGREES
         lat_max = np.nanmax(b_lats[b_has]) + BBOX_MARGIN_DEGREES
         lng_min = np.nanmin(b_lngs[b_has]) - BBOX_MARGIN_DEGREES
@@ -214,7 +214,7 @@ def train_model(n_estimators=300, max_depth=4, learning_rate=0.05, min_year_buil
     try:
         data = db.fetch_sold_for_training()
         df = pd.DataFrame(data)
-        del data; gc.collect()  # free raw list — DataFrame is all we need
+        del data; gc.collect()  # free raw list - DataFrame is all we need
         logger.info(f"[LOAD] Sold data: {len(df)} rows  RAM: {df.memory_usage(deep=True).sum() // 1024} KB")
 
         # Ensure coordinates are floats (DB returns Decimals which break NumPy)
@@ -343,7 +343,7 @@ def score_properties():
 
         context = active.get("training_context")
         if context is None:
-            logger.error("[FAIL] Active model has no training_context — run the UPDATE fix first")
+            logger.error("[FAIL] Active model has no training_context - run the UPDATE fix first")
             db.fail_model_run(run_id, "training_context is NULL on active model")
             return
         if isinstance(context, str):
@@ -370,7 +370,7 @@ def score_properties():
         logger.info("[EXEC] Fetching for-sale candidates for scoring...")
         candidates = db.fetch_for_sale_for_scoring()
         if not candidates:
-            logger.info("[LOAD] No for-sale candidates found — nothing to score")
+            logger.info("[LOAD] No for-sale candidates found - nothing to score")
             db.complete_model_run(run_id, properties_scored=0)
             return
         logger.info(f"[LOAD] Candidates to score: {len(candidates)}")
@@ -384,7 +384,7 @@ def score_properties():
         logger.info("[EXEC] Computing 0.5-mile geospatial features...")
         t0 = time.time()
         df['avg_new_build_price_sqft_05mi'] = calculate_geospatial_features(df, new_builds_ref)
-        logger.info(f"[LOAD] Geo features done in {time.time() - t0:.1f}s — non-null: {df['avg_new_build_price_sqft_05mi'].notna().sum()}/{len(df)}")
+        logger.info(f"[LOAD] Geo features done in {time.time() - t0:.1f}s - non-null: {df['avg_new_build_price_sqft_05mi'].notna().sum()}/{len(df)}")
         del sold_df; gc.collect()
 
         # Load model
@@ -409,13 +409,13 @@ def score_properties():
         # Predict
         logger.info(f"[EXEC] Running model.predict on {len(X)} rows...")
         df['predicted_rebuild_value'] = model.predict(X).astype(int)
-        logger.info(f"[LOAD] Predictions done — min={df['predicted_rebuild_value'].min()}  max={df['predicted_rebuild_value'].max()}  mean={df['predicted_rebuild_value'].mean():.0f}")
+        logger.info(f"[LOAD] Predictions done - min={df['predicted_rebuild_value'].min()}  max={df['predicted_rebuild_value'].max()}  mean={df['predicted_rebuild_value'].mean():.0f}")
 
         # Score
         cost_per_sqft = df['construction_cost_per_sqft'].fillna(CONSTRUCTION_COST_DEFAULT).astype(float)
         opp = df['predicted_rebuild_value'] - (df['list_price'] + df['sqft'] * cost_per_sqft)
         positive = (opp > 0).sum()
-        logger.info(f"[EXEC] Opportunity scores computed — positive: {positive}/{len(df)}")
+        logger.info(f"[EXEC] Opportunity scores computed - positive: {positive}/{len(df)}")
 
         results = (
             df[['id', 'predicted_rebuild_value']]
@@ -427,7 +427,7 @@ def score_properties():
         logger.info(f"[EXEC] Writing {len(results)} scores to DB...")
         db.write_opportunity_scores(results)
         db.complete_model_run(run_id, properties_scored=len(results))
-        logger.info(f"[LOAD] Scoring complete — {len(results)} properties scored")
+        logger.info(f"[LOAD] Scoring complete - {len(results)} properties scored")
 
     except Exception as e:
         logger.error(f"[FAIL] Scoring failed: {str(e)}")

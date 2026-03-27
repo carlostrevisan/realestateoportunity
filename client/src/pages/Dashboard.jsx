@@ -18,14 +18,14 @@ const INITIAL_ROI_FILTERS = { green: true, yellow: false, red: false, gray: fals
 
 // ── Tier helpers ──────────────────────────────────────────────────────────────
 function tierLabel(val) {
-  if (val == null)    return { label: "—",    cls: "text-plt-muted" };
+  if (val == null)    return { label: "-",    cls: "text-plt-muted" };
   if (val > 200_000)  return { label: "HIGH", cls: "text-plt-success font-bold" };
   if (val >= 0)       return { label: "MID",  cls: "text-plt-warning font-bold" };
   return               { label: "LOSS", cls: "text-plt-danger  font-bold" };
 }
 
 function fmtMoney(v) {
-  if (v == null) return "—";
+  if (v == null) return "-";
   const abs  = Math.abs(v);
   const sign = v < 0 ? "-" : "";
   if (abs >= 1_000_000) return `${sign}$${(abs / 1_000_000).toFixed(1)}M`;
@@ -115,15 +115,15 @@ function PropertyTable({ rows, onSelect, selectedId, loading }) {
                       ? "bg-white hover:bg-plt-bg"
                       : "bg-plt-bg/60 hover:bg-plt-bg"}`}
               >
-                <td className="px-3 py-2 font-medium max-w-[200px] truncate">{p.address || "—"}</td>
+                <td className="px-3 py-2 font-medium max-w-[200px] truncate">{p.address || "-"}</td>
                 <td className="px-3 py-2 text-plt-muted whitespace-nowrap">{formatCityName(p.city)}</td>
-                <td className="px-3 py-2 font-mono text-plt-muted">{p.zip || "—"}</td>
-                <td className="px-3 py-2 text-right font-mono">{p.year_built || "—"}</td>
-                <td className="px-3 py-2 text-right font-mono">{p.sqft ? p.sqft.toLocaleString() : "—"}</td>
-                <td className="px-3 py-2 text-right font-mono">{p.list_price ? `$${p.list_price.toLocaleString()}` : "—"}</td>
-                <td className="px-3 py-2 text-right font-mono">{p.predicted_rebuild_value ? `$${p.predicted_rebuild_value.toLocaleString()}` : "—"}</td>
+                <td className="px-3 py-2 font-mono text-plt-muted">{p.zip || "-"}</td>
+                <td className="px-3 py-2 text-right font-mono">{p.year_built || "-"}</td>
+                <td className="px-3 py-2 text-right font-mono">{p.sqft ? p.sqft.toLocaleString() : "-"}</td>
+                <td className="px-3 py-2 text-right font-mono">{p.list_price ? `$${p.list_price.toLocaleString()}` : "-"}</td>
+                <td className="px-3 py-2 text-right font-mono">{p.predicted_rebuild_value ? `$${p.predicted_rebuild_value.toLocaleString()}` : "-"}</td>
                 <td className={`px-3 py-2 text-right font-mono font-bold ${tier.cls}`}>
-                  {p.opportunity_result != null ? fmtMoney(p.opportunity_result) : "—"}
+                  {p.opportunity_result != null ? fmtMoney(p.opportunity_result) : "-"}
                 </td>
                 <td className={`px-3 py-2 text-center text-[10px] font-bold ${tier.cls}`}>{tier.label}</td>
               </tr>
@@ -242,7 +242,7 @@ export default function Dashboard() {
       const res  = await fetch(`${API_BASE}/api/export/csv?${p}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (!res.ok) { alert("Export failed — try again."); return; }
+      if (!res.ok) { alert("Export failed - try again."); return; }
 
       const blob = await res.blob();
       const url  = URL.createObjectURL(blob);
@@ -363,7 +363,7 @@ export default function Dashboard() {
 
   return (
     <div className="flex flex-col h-full w-full overflow-hidden bg-plt-bg text-plt-primary">
-      {/* Tactical Filter Bar — glassmorphism */}
+      {/* Tactical Filter Bar - glassmorphism */}
       <div className="bg-white/90 backdrop-blur-sm border-b border-plt-border px-4 py-3 flex flex-col gap-4 flex-shrink-0 z-10 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-4">
           {/* Main Filters */}
@@ -493,7 +493,7 @@ export default function Dashboard() {
               ))}
             </div>
 
-            {/* Export + Report — only in table mode */}
+            {/* Export + Report - only in table mode */}
             {viewMode === "table" && (
               <div className="flex items-center gap-2">
                 <button
@@ -557,7 +557,7 @@ export default function Dashboard() {
                   {tableLoading
                     ? "Loading…"
                     : tableRows
-                      ? `${tableRows.length.toLocaleString()} propert${tableRows.length === 1 ? "y" : "ies"} — sorted by opportunity`
+                      ? `${tableRows.length.toLocaleString()} propert${tableRows.length === 1 ? "y" : "ies"} - sorted by opportunity`
                       : ""}
                 </span>
                 {selectedProp && (
@@ -576,7 +576,7 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* Property detail sidebar — overlays map on mobile, slides in from right on md+ */}
+        {/* Property detail sidebar - overlays map on mobile, slides in from right on md+ */}
         <aside className={`${selectedProp ? 'w-full md:w-[420px]' : 'w-0'} absolute inset-0 md:relative md:inset-auto bg-plt-panel md:border-l border-plt-border flex flex-col transition-all duration-300 overflow-hidden shadow-2xl ring-1 ring-black/5 z-30`}>
           {selectedProp && (() => {
             const p = selectedProp;
@@ -619,11 +619,11 @@ export default function Dashboard() {
                   {/* Property info grid */}
                   <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs mb-4 py-3 border-y border-plt-border/50">
                     <span className="text-plt-muted">Year Built</span>
-                    <span className="text-right font-sans font-bold text-plt-primary">{p.year_built || '—'}{age ? <span className="text-plt-muted ml-1">({age} yrs)</span> : ''}</span>
+                    <span className="text-right font-mono font-bold text-plt-primary">{p.year_built || '-'}{age ? <span className="text-plt-muted ml-1">({age} yrs)</span> : ''}</span>
                     <span className="text-plt-muted">Size</span>
-                    <span className="text-right font-sans font-bold text-plt-primary">{p.sqft ? p.sqft.toLocaleString() + ' sqft' : '—'}</span>
+                    <span className="text-right font-mono font-bold text-plt-primary">{p.sqft ? p.sqft.toLocaleString() + ' sqft' : '-'}</span>
                     <span className="text-plt-muted">Lot</span>
-                    <span className="text-right font-sans font-bold text-plt-primary">{p.lot_sqft ? p.lot_sqft.toLocaleString() + ' sqft' : '—'}</span>
+                    <span className="text-right font-mono font-bold text-plt-primary">{p.lot_sqft ? p.lot_sqft.toLocaleString() + ' sqft' : '-'}</span>
                     <span className="text-plt-muted">Type</span>
                     <span className="text-right text-plt-primary">{p.property_type || 'Single Family'}</span>
                   </div>
@@ -633,28 +633,28 @@ export default function Dashboard() {
                     <div className="text-[9px] font-semibold uppercase tracking-wider text-plt-muted mb-2">Financials</div>
                     <div className="flex justify-between">
                       <span className="text-plt-muted">Asking Price</span>
-                      <span className="font-sans font-bold text-plt-primary">{p.list_price ? '$' + p.list_price.toLocaleString() : '—'}</span>
+                      <span className="font-mono font-bold text-plt-primary">{p.list_price ? '$' + p.list_price.toLocaleString() : '-'}</span>
                     </div>
                     {buildCost && (
                       <div className="flex justify-between">
                         <span className="text-plt-muted">Est. Build Cost <span className="text-[9px] opacity-60">({p.sqft?.toLocaleString()} × ${costPerSqft}/sqft)</span></span>
-                        <span className="font-sans font-bold text-plt-primary">${buildCost.toLocaleString()}</span>
+                        <span className="font-mono font-bold text-plt-primary">${buildCost.toLocaleString()}</span>
                       </div>
                     )}
                     {totalCost && (
                       <div className="flex justify-between border-t border-plt-border/40 pt-1.5">
                         <span className="text-plt-muted font-semibold">Total Cost</span>
-                        <span className="font-sans font-bold font-semibold text-plt-primary">${totalCost.toLocaleString()}</span>
+                        <span className="font-mono font-bold text-plt-primary">${totalCost.toLocaleString()}</span>
                       </div>
                     )}
                     <div className="flex justify-between">
                       <span className="text-plt-muted">Predicted Value</span>
-                      <span className="font-sans font-bold text-plt-primary">{p.predicted_rebuild_value ? '$' + p.predicted_rebuild_value.toLocaleString() : '—'}</span>
+                      <span className="font-mono font-bold text-plt-primary">{p.predicted_rebuild_value ? '$' + p.predicted_rebuild_value.toLocaleString() : '-'}</span>
                     </div>
                     <div className="flex justify-between border-t border-plt-border/40 pt-1.5">
                       <span className="text-plt-muted font-semibold">Est. Profit</span>
-                      <span className={`font-sans font-bold font-bold text-sm ${profitColor}`}>
-                        {profit != null ? `${profitSign}$${Math.abs(profit).toLocaleString()}` : '—'}
+                      <span className={`font-mono font-bold text-sm ${profitColor}`}>
+                        {profit != null ? `${profitSign}$${Math.abs(profit).toLocaleString()}` : '-'}
                       </span>
                     </div>
                   </div>
@@ -689,7 +689,7 @@ export default function Dashboard() {
                       : 'bg-violet-500/20 text-violet-400 border border-violet-500/30';
 
                     const pricePerSqft = comp.sold_price && comp.sqft ? Math.round(comp.sold_price / comp.sqft) : null;
-                    const distanceDisplay = comp.distance_mi ? comp.distance_mi.toFixed(2) + ' mi' : '—';
+                    const distanceDisplay = comp.distance_mi ? comp.distance_mi.toFixed(2) + ' mi' : '-';
 
                     return (
                       <div
@@ -710,9 +710,9 @@ export default function Dashboard() {
                             {pricePerSqft && <span className="text-[10px] text-plt-muted ml-1.5">(${pricePerSqft}/ft²)</span>}
                           </div>
                           <span className="text-plt-muted">Proximity</span>
-                          <span className="text-right font-sans font-bold text-plt-primary">{distanceDisplay}</span>
+                          <span className="text-right font-mono font-bold text-plt-primary">{distanceDisplay}</span>
                           <span className="text-plt-muted">Details</span>
-                          <span className="text-right font-sans font-bold text-[11px] text-plt-primary">{comp.sqft?.toLocaleString()} sqft · {comp.year_built}</span>
+                          <span className="text-right font-mono font-bold text-[11px] text-plt-primary">{comp.sqft?.toLocaleString()} sqft · {comp.year_built}</span>
                         </div>
                       </div>
                     );

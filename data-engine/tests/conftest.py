@@ -1,5 +1,5 @@
 """
-conftest.py — shared pytest fixtures and environment setup.
+conftest.py - shared pytest fixtures and environment setup.
 
 Two problems solved here:
 1. db.py raises EnvironmentError when DATABASE_URL is not set.

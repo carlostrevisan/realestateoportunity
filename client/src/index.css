@@ -62,7 +62,7 @@ body {
 .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 
-/* shadcn/ui CSS variable bridge — maps to existing plt color palette */
+/* shadcn/ui CSS variable bridge - maps to existing plt color palette */
 :root {
   --background: #f8fafc;
   --foreground: #0f172a;

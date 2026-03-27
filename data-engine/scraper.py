@@ -1,5 +1,5 @@
 """
-scraper.py — HomeHarvest MLS scraper.
+scraper.py - HomeHarvest MLS scraper.
 """
 
 import argparse
@@ -81,7 +81,7 @@ def _scrape_with_retry(location, listing_type, date_from=None, date_to=None, lab
 
             if is_transient and attempt < MAX_RETRIES:
                 wait = BACKOFF_BASE * (2 ** attempt)
-                logger.warning(f"[WARN] Retry {attempt+1}/{MAX_RETRIES} for {label} — waiting {wait}s")
+                logger.warning(f"[WARN] Retry {attempt+1}/{MAX_RETRIES} for {label} - waiting {wait}s")
                 time.sleep(wait)
             else:
                 logger.error(f"[FAIL] Request failed for {label}: {err_msg}")
@@ -91,7 +91,7 @@ def _scrape_with_retry(location, listing_type, date_from=None, date_to=None, lab
 def scrape_sold_range(market_or_zip, start_ym, end_ym, throttle=None, dry_run=False, force_renew=False, all_zips=False):
     db.ensure_schema()
 
-    # Only skip IDs already stored as sold — for_sale IDs should be re-processed
+    # Only skip IDs already stored as sold - for_sale IDs should be re-processed
     # so they get updated to sold with sold_price/sold_date
     sold_ids = db.fetch_sold_mls_ids()
     logger.info(f"[SYST] Loaded {len(sold_ids)} existing sold MLS IDs for deduplication")
@@ -124,12 +124,12 @@ def scrape_sold_range(market_or_zip, start_ym, end_ym, throttle=None, dry_run=Fa
         logger.info(f"[SKIP] {cached_count} of {len(all_tasks)} months already cached")
 
     if not to_fetch:
-        logger.info(f"[EXEC] All {len(all_tasks)} months already cached for {location} — nothing to fetch")
+        logger.info(f"[EXEC] All {len(all_tasks)} months already cached for {location} - nothing to fetch")
         return 0
 
     # Estimate: throttle avg + ~6s for network per chunk
     est_seconds = len(to_fetch) * (t_avg + 6)
-    logger.info(f"[EXEC] Scraping {len(to_fetch)} months for {location} (throttle {t_min}-{t_max}s) — est. {_format_eta(est_seconds)}")
+    logger.info(f"[EXEC] Scraping {len(to_fetch)} months for {location} (throttle {t_min}-{t_max}s) - est. {_format_eta(est_seconds)}")
 
     total_upserted = 0
     failed_chunks = []
@@ -151,7 +151,7 @@ def scrape_sold_range(market_or_zip, start_ym, end_ym, throttle=None, dry_run=Fa
             upserted = 0
             if results is not None and not results.empty:
                 raw_count = len(results)
-                # Only skip IDs already stored as sold — not for_sale IDs
+                # Only skip IDs already stored as sold - not for_sale IDs
                 results = results[~results['mls_id'].astype(str).isin(sold_ids)]
                 after_dedup = len(results)
                 if raw_count != after_dedup:
@@ -176,11 +176,11 @@ def scrape_sold_range(market_or_zip, start_ym, end_ym, throttle=None, dry_run=Fa
                     del results
 
                 if upserted > 0:
-                    logger.info(f"[LOAD] Saved {upserted} new listings — {location}, {month_label}")
+                    logger.info(f"[LOAD] Saved {upserted} new listings - {location}, {month_label}")
                 else:
-                    logger.info(f"[SYST] No new listings — {location}, {month_label}")
+                    logger.info(f"[SYST] No new listings - {location}, {month_label}")
             else:
-                logger.info(f"[SYST] No data returned — {location}, {month_label}")
+                logger.info(f"[SYST] No data returned - {location}, {month_label}")
 
             if not dry_run:
                 db.mark_chunk_completed(market_or_zip, cs.month, cs.year, "sold")
@@ -193,12 +193,12 @@ def scrape_sold_range(market_or_zip, start_ym, end_ym, throttle=None, dry_run=Fa
             elapsed = time.time() - start_time
             avg_per_chunk = elapsed / chunks_done
             remaining_eta = _format_eta((len(to_fetch) - chunks_done) * avg_per_chunk)
-            logger.info(f"[SYST] {chunks_done}/{len(to_fetch)} months done — {remaining_eta} remaining")
+            logger.info(f"[SYST] {chunks_done}/{len(to_fetch)} months done - {remaining_eta} remaining")
 
     # Second pass: retry any months that failed in the main loop, using a safe 30s wait
     # regardless of the requested throttle speed, to guarantee data completeness.
     if failed_chunks:
-        logger.info(f"[RETRY] {len(failed_chunks)} month(s) failed — retrying with 30s safety wait to ensure complete data")
+        logger.info(f"[RETRY] {len(failed_chunks)} month(s) failed - retrying with 30s safety wait to ensure complete data")
         for cs, ce in failed_chunks:
             month_label = f"{MONTH_NAMES[cs.month-1]} {cs.year}"
             logger.info(f"[SYST] Waiting 30s before retry...")
@@ -219,11 +219,11 @@ def scrape_sold_range(market_or_zip, start_ym, end_ym, throttle=None, dry_run=Fa
                             sold_ids.update(str(r["mls_id"]) for r in records)
                 if not dry_run:
                     db.mark_chunk_completed(market_or_zip, cs.month, cs.year, "sold")
-                logger.info(f"[LOAD] Retry succeeded — {upserted} listings saved for {location}, {month_label}")
+                logger.info(f"[LOAD] Retry succeeded - {upserted} listings saved for {location}, {month_label}")
             else:
-                logger.error(f"[FAIL] {location}, {month_label} still failed — will retry on next run")
+                logger.error(f"[FAIL] {location}, {month_label} still failed - will retry on next run")
 
-    logger.info(f"[EXEC] Done — {total_upserted} total properties saved")
+    logger.info(f"[EXEC] Done - {total_upserted} total properties saved")
     return total_upserted
 
 def scrape_for_sale(market_or_zip, throttle=None, dry_run=False, all_zips=False):
@@ -231,7 +231,7 @@ def scrape_for_sale(market_or_zip, throttle=None, dry_run=False, all_zips=False)
 
     location, target_zips = _get_location_and_zips(market_or_zip)
 
-    # Active listings are always re-fetched — prices change, and properties that were
+    # Active listings are always re-fetched - prices change, and properties that were
     # previously sold may relist. No in-memory dedup: the upsert handles duplicates.
     logger.info(f"[EXEC] Fetching active listings for {location} (single request)...")
     results, ok = _scrape_with_retry(location, "for_sale", label=location)

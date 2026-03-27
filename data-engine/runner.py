@@ -1,5 +1,5 @@
 """
-runner.py — Flask HTTP job runner for the data-worker service.
+runner.py - Flask HTTP job runner for the data-worker service.
 
 Exposes an internal HTTP API (port 5000, Docker network only) that the
 Express backend proxies to. Each job runs as a subprocess so there is no
@@ -36,10 +36,10 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s", datefm
 
 app = Flask(__name__)
 
-# Report output file registry — job_id → PDF path
+# Report output file registry - job_id → PDF path
 _report_files: dict = {}
 
-# In-memory job store — keeps the last 50 jobs
+# In-memory job store - keeps the last 50 jobs
 _lock = threading.Lock()
 _jobs: OrderedDict = OrderedDict()
 _processes = {} # job_id -> subprocess.Popen
@@ -345,7 +345,7 @@ def get_report(job_id):
 
     output_path = _report_files.get(job_id)
     if not output_path or not os.path.exists(output_path):
-        return jsonify({"error": "Report not found — job may still be running"}), 404
+        return jsonify({"error": "Report not found - job may still be running"}), 404
 
     return send_file(
         output_path,

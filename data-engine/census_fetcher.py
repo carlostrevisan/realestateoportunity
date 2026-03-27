@@ -1,7 +1,7 @@
 """
-census_fetcher.py — Fetch median household income per ZIP from the U.S. Census API.
+census_fetcher.py - Fetch median household income per ZIP from the U.S. Census API.
 
-Uses the public ACS 5-year estimates endpoint — no API key required.
+Uses the public ACS 5-year estimates endpoint - no API key required.
 Rate limit: ~500 requests/day on unauthenticated access.
 
 Usage:
@@ -24,7 +24,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# ACS 5-Year Estimates — most recent stable year
+# ACS 5-Year Estimates - most recent stable year
 # Variable B19013_001E = Median Household Income in the Past 12 Months
 CENSUS_BASE = "https://api.census.gov/data"
 ACS_YEAR = "2022"
@@ -103,7 +103,7 @@ def fetch_all_zips(zip_codes: list[str], pause: float = 1.0):
 
         time.sleep(pause)
 
-    logger.info(f"[census] Done — {success} success, {failed} failed out of {len(zip_codes)} ZIPs")
+    logger.info(f"[census] Done - {success} success, {failed} failed out of {len(zip_codes)} ZIPs")
 
 
 def main():

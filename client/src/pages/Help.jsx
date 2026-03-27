@@ -126,7 +126,7 @@ function PhaseCard({ num, title, children }) {
   return (
     <Card>
       <CardContent className="p-4">
-        <div className="text-plt-accent font-bold text-xs uppercase tracking-tighter mb-2">Phase {num} — {title}</div>
+        <div className="text-plt-accent font-bold text-xs uppercase tracking-tighter mb-2">Phase {num} - {title}</div>
         <p className="text-xs leading-relaxed text-plt-secondary">{children}</p>
       </CardContent>
     </Card>

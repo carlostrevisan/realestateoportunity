@@ -13,7 +13,7 @@ jest.mock("../middleware/auth", () => ({
   requireAdmin: (req, res, next) => next(),
 }));
 
-// Mock global fetch — scrape routes proxy to the data-worker via fetch()
+// Mock global fetch - scrape routes proxy to the data-worker via fetch()
 global.fetch = jest.fn();
 
 const request = require("supertest");
@@ -44,10 +44,10 @@ beforeEach(() => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// POST /api/scrape/trigger — input validation
+// POST /api/scrape/trigger - input validation
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe("POST /api/scrape/trigger — validation", () => {
+describe("POST /api/scrape/trigger - validation", () => {
   it("returns 400 when neither zip nor market is provided", async () => {
     // Arrange
     const { app } = buildApp();
@@ -106,10 +106,10 @@ describe("POST /api/scrape/trigger — validation", () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// POST /api/scrape/trigger — successful proxy
+// POST /api/scrape/trigger - successful proxy
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe("POST /api/scrape/trigger — data-worker proxy", () => {
+describe("POST /api/scrape/trigger - data-worker proxy", () => {
   it("forwards a valid for_sale + market request to the data-worker and returns its response", async () => {
     // Arrange
     const { app } = buildApp();
@@ -124,7 +124,7 @@ describe("POST /api/scrape/trigger — data-worker proxy", () => {
       .post("/api/scrape/trigger")
       .send({ type: "for_sale", market: "tampa" });
 
-    // Assert — status mirrors the worker response
+    // Assert - status mirrors the worker response
     expect(res.status).toBe(202);
     expect(res.body).toEqual(workerResponse);
     // fetch was called once with the worker URL

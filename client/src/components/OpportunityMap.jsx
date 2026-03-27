@@ -28,7 +28,7 @@ const MAP_ZOOM   = 7;
 /**
  * Builds an inline-styled HTML string for Leaflet popups.
  * All three marker types (main, comparable, new build) share the same outer
- * chrome, grid layout, and Zillow button — only the content differs.
+ * chrome, grid layout, and Zillow button - only the content differs.
  *
  * When `addressLine` is null the `header` is assumed to be the address itself
  * (main marker style: uppercase location, 11px header). When `addressLine` is
@@ -261,8 +261,8 @@ export default function OpportunityMap({ filters, roiFilters, onSelectProperty, 
         header: isNew ? 'NEW BUILD COMP' : 'OLDER COMP',
         addressLine: comp.address, location: `${cityDisplay}, FL ${comp.zip}`,
         rows: [
-          ['SALE PRICE', `$${comp.sold_price?.toLocaleString() || '—'}`, 'font-weight:800;'],
-          ['SIZE',       `${comp.sqft?.toLocaleString() || '—'} SQFT`,   'font-weight:700;'],
+          ['SALE PRICE', `$${comp.sold_price?.toLocaleString() || '-'}`, 'font-weight:800;'],
+          ['SIZE',       `${comp.sqft?.toLocaleString() || '-'} SQFT`,   'font-weight:700;'],
         ],
         zillowUrl, buttonLabel: 'Find on Zillow', buttonColor: fillColor,
       });
@@ -303,8 +303,8 @@ export default function OpportunityMap({ filters, roiFilters, onSelectProperty, 
         header: 'MARKET CONTEXT (NEW BUILD)', headerColor: '#3b82f6',
         addressLine: p.address, location: `${cityDisplay}, FL ${p.zip}`,
         rows: [
-          ['LIST PRICE', `$${p.list_price?.toLocaleString() || '—'}`, 'font-weight:800;'],
-          ['SIZE',       `${p.sqft?.toLocaleString() || '—'} SQFT`,   'font-weight:700;'],
+          ['LIST PRICE', `$${p.list_price?.toLocaleString() || '-'}`, 'font-weight:800;'],
+          ['SIZE',       `${p.sqft?.toLocaleString() || '-'} SQFT`,   'font-weight:700;'],
         ],
         zillowUrl, buttonColor: '#3b82f6',
       });

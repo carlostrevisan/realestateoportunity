@@ -62,11 +62,11 @@ function renderDashboard() {
 // Initial render
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe("Dashboard — initial render", () => {
+describe("Dashboard - initial render", () => {
   it("renders the filter bar labels", () => {
     // Arrange & Act
     renderDashboard();
-    // Assert — key filter labels are visible
+    // Assert - key filter labels are visible
     expect(screen.getByText("Inventory Type")).toBeInTheDocument();
     expect(screen.getByText("Market / City")).toBeInTheDocument();
     expect(screen.getByText("ZIP Code")).toBeInTheDocument();
@@ -92,21 +92,21 @@ describe("Dashboard — initial render", () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// API data loading — filters dropdown
+// API data loading - filters dropdown
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe("Dashboard — filter dropdowns populate from API", () => {
+describe("Dashboard - filter dropdowns populate from API", () => {
   it("populates the Market / City dropdown with values from /api/opportunities/filters", async () => {
     // Arrange
     const user = userEvent.setup();
     renderDashboard();
 
-    // Act — shadcn Select renders a combobox trigger; open it to reveal options
+    // Act - shadcn Select renders a combobox trigger; open it to reveal options
     await waitFor(async () => {
       const triggers = screen.getAllByRole("combobox");
       // triggers[0]=listing_type, triggers[1]=city, triggers[2]=zip
       await user.click(triggers[1]);
-      // Assert — Tampa option is now visible in the open dropdown
+      // Assert - Tampa option is now visible in the open dropdown
       expect(screen.getByRole("option", { name: "Tampa" })).toBeInTheDocument();
     });
   });
@@ -128,7 +128,7 @@ describe("Dashboard — filter dropdowns populate from API", () => {
 // ROI colour toggle buttons
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe("Dashboard — ROI colour toggles", () => {
+describe("Dashboard - ROI colour toggles", () => {
   it("renders all four ROI label texts: High, Mid, Loss, None", () => {
     renderDashboard();
     expect(screen.getByText("High")).toBeInTheDocument();
@@ -142,7 +142,7 @@ describe("Dashboard — ROI colour toggles", () => {
 // Inventory type selector
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe("Dashboard — Inventory Type selector", () => {
+describe("Dashboard - Inventory Type selector", () => {
   it("defaults to 'Active Listings' in the trigger", () => {
     renderDashboard();
     // shadcn Select renders the selected value inside the trigger button
@@ -162,16 +162,16 @@ describe("Dashboard — Inventory Type selector", () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Reset button — appears when filters are active
+// Reset button - appears when filters are active
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe("Dashboard — Reset button visibility", () => {
+describe("Dashboard - Reset button visibility", () => {
   it("shows the Reset button when the user types in the min ROI field", async () => {
     // Arrange
     const user = userEvent.setup();
     renderDashboard();
 
-    // Act — type a value into the Min Opportunity input
+    // Act - type a value into the Min Opportunity input
     const minRoiInput = document.querySelector('input[name="min_roi"]');
     await user.type(minRoiInput, "50000");
 
@@ -204,15 +204,15 @@ describe("Dashboard — Reset button visibility", () => {
 // API error handling
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe("Dashboard — graceful API error handling", () => {
+describe("Dashboard - graceful API error handling", () => {
   it("does not crash when /api/opportunities/filters returns a network error", async () => {
-    // Arrange — override fetch to reject for this test
+    // Arrange - override fetch to reject for this test
     globalThis.fetch = vi.fn().mockRejectedValue(new Error("Network error"));
 
     // Act
     renderDashboard();
 
-    // Assert — app still renders without throwing
+    // Assert - app still renders without throwing
     await waitFor(() => {
       expect(screen.getByText("Inventory Type")).toBeInTheDocument();
     });
