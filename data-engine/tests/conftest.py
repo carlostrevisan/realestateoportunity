@@ -33,6 +33,11 @@ if "xgboost" not in sys.modules or os.environ.get("STUB_ML"):
 if "lightgbm" not in sys.modules or os.environ.get("STUB_ML"):
     sys.modules["lightgbm"] = MagicMock()
 
+if "homeharvest" not in sys.modules:
+    mock_hh = MagicMock()
+    mock_hh.scrape_property = MagicMock()
+    sys.modules["homeharvest"] = mock_hh
+
 # ── 3. Ensure the data-engine source directory is on the path ───────────────
 _engine_dir = os.path.dirname(os.path.dirname(__file__))
 if _engine_dir not in sys.path:

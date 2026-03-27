@@ -21,8 +21,8 @@ vi.mock("@clerk/react", () => ({
   SignInButton: ({ children }) => <div>{children}</div>,
   SignUpButton: ({ children }) => <div>{children}</div>,
   UserButton: () => <div>UserButton</div>,
-  useUser: () => ({ isSignedIn: false, user: null }),
-  useAuth: () => ({ isSignedIn: false, userId: null }),
+  useUser: vi.fn(() => ({ isSignedIn: false, user: null })),
+  useAuth: vi.fn(() => ({ isSignedIn: false, userId: null })),
 }));
 
 // Start MSW before every test suite, clean up handlers between tests,

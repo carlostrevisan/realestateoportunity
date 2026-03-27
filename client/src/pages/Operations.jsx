@@ -1,14 +1,12 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { useAuth, useUser } from "@clerk/react";
-import { Label, Val, StatusDot, Btn, StatusBadge } from "../components/UI.jsx";
+import { useAuth } from "@clerk/react";
+import { Label, StatusDot, Btn, StatusBadge } from "../components/UI.jsx";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
-import { BarChart, Bar, XAxis, YAxis, Cell, CartesianGrid } from "recharts";
 
 const API = "";
 
@@ -20,10 +18,9 @@ async function delayMinimum(startTime, ms = 600) {
 // Helper for authenticated requests
 const useAuthenticatedFetch = () => {
   const { getToken, isSignedIn } = useAuth();
-  
+
   return async (url, options = {}) => {
     if (!isSignedIn) {
-      alert("⚠️ Authentication Required: Please Sign In to perform this action.");
       return { ok: false, status: 401 };
     }
 
@@ -32,7 +29,7 @@ const useAuthenticatedFetch = () => {
       ...options.headers,
       Authorization: `Bearer ${token}`,
     };
-    
+
     try {
       const res = await fetch(url, { ...options, headers });
       if (res.status === 403) {
@@ -49,30 +46,28 @@ const useAuthenticatedFetch = () => {
 };
 
 const MARKETS = [
-  { value: "tampa",        label: "Tampa" },
-  { value: "orlando",      label: "Orlando" },
-  { value: "winter_garden",label: "Winter Garden" },
-  { value: "winter_park",  label: "Winter Park" },
+  { value: "tampa",         label: "Tampa" },
+  { value: "orlando",       label: "Orlando" },
+  { value: "winter_garden", label: "Winter Garden" },
+  { value: "winter_park",   label: "Winter Park" },
 ];
-
-// ── Components ───────────────────────────────────────────────────────
 
 // ── Ops History (persistent DB log) ──────────────────────────────────
 
 const OP_TYPE_LABEL = {
-  train:         "TRAIN",
-  score:         "SCORE",
-  score_weighted:"WEIGHTED",
-  scrape:        "SCRAPE",
-  census:        "CENSUS",
+  train:          "TRAIN",
+  score:          "SCORE",
+  score_weighted: "WEIGHTED",
+  scrape:         "SCRAPE",
+  census:         "CENSUS",
 };
 
 const OP_TYPE_COLOR = {
-  train:         "bg-blue-100 text-blue-700 border-blue-200",
-  score:         "bg-plt-success/10 text-plt-success border-plt-success/20",
-  score_weighted:"bg-purple-100 text-purple-700 border-purple-200",
-  scrape:        "bg-amber-100 text-amber-700 border-amber-200",
-  census:        "bg-slate-100 text-slate-600 border-slate-200",
+  train:          "bg-blue-100 text-blue-700 border-blue-200",
+  score:          "bg-plt-success/10 text-plt-success border-plt-success/20",
+  score_weighted: "bg-purple-100 text-purple-700 border-purple-200",
+  scrape:         "bg-amber-100 text-amber-700 border-amber-200",
+  census:         "bg-slate-100 text-slate-600 border-slate-200",
 };
 
 function fmtDate(iso) {
@@ -149,7 +144,7 @@ function OpsHistory() {
 
 // ── Job Console ────────────────────────────────────────────────────────
 
-function JobConsole({ selectedId, setSelectedId, jobs = [], onClear }) {
+function JobConsole({ selectedId, setSelectedId, jobs = [], onClear, isSignedIn }) {
   const [selectedJob, setSelectedJob] = useState(null);
   const [stopping, setStopping] = useState({});
   const scrollRef = useRef(null);
@@ -216,7 +211,7 @@ function JobConsole({ selectedId, setSelectedId, jobs = [], onClear }) {
                 History
               </TabsTrigger>
             </TabsList>
-            {selectedJob?.status === "running" && (
+            {isSignedIn && selectedJob?.status === "running" && (
               <button
                 onClick={(e) => stopJob(e, selectedId)}
                 disabled={stopping[selectedId]}
@@ -297,7 +292,7 @@ function JobConsole({ selectedId, setSelectedId, jobs = [], onClear }) {
           </div>
         </TabsContent>
 
-        {/* History tab — persistent DB-backed ops log */}
+        {/* History tab */}
         <TabsContent value="history" className="data-[state=active]:flex-1 data-[state=inactive]:hidden flex flex-col overflow-hidden mt-0">
           <OpsHistory />
         </TabsContent>
@@ -306,7 +301,9 @@ function JobConsole({ selectedId, setSelectedId, jobs = [], onClear }) {
   );
 }
 
-function ControlCard({ onJob, models, fetchModels }) {
+// ── Control Card ──────────────────────────────────────────────────────
+
+function ControlCard({ onJob, models, fetchModels, isSignedIn }) {
   const authFetch = useAuthenticatedFetch();
   return (
     <div className="flex flex-col flex-1 bg-white border border-plt-border overflow-hidden relative shadow-sm rounded-xl font-sans">
@@ -317,21 +314,28 @@ function ControlCard({ onJob, models, fetchModels }) {
             <div className="w-1.5 h-1.5 bg-plt-accent rounded-full" />
             <span className="text-[9px] font-bold uppercase tracking-widest text-plt-muted">Controls</span>
           </div>
-          <TabsList className="bg-plt-bg border border-plt-border h-8">
-            <TabsTrigger value="acquisition" className="text-[10px] font-bold uppercase tracking-widest px-3 py-1">
-              Data Acquisition
-            </TabsTrigger>
-            <TabsTrigger value="model" className="text-[10px] font-bold uppercase tracking-widest px-3 py-1">
-              Model Engine
-            </TabsTrigger>
-          </TabsList>
+          <div className="flex items-center gap-3">
+            {!isSignedIn && (
+              <span className="text-[10px] font-semibold text-plt-muted bg-slate-100 border border-plt-border px-2.5 py-1 rounded-full">
+                Sign in to use controls
+              </span>
+            )}
+            <TabsList className="bg-plt-bg border border-plt-border h-8">
+              <TabsTrigger value="acquisition" className="text-[10px] font-bold uppercase tracking-widest px-3 py-1">
+                Data Acquisition
+              </TabsTrigger>
+              <TabsTrigger value="model" className="text-[10px] font-bold uppercase tracking-widest px-3 py-1">
+                Model Engine
+              </TabsTrigger>
+            </TabsList>
+          </div>
         </div>
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto p-5 custom-scrollbar">
           <TabsContent value="acquisition" className="mt-0">
             <div className="space-y-5">
-              <IngestionControls onJob={onJob} />
+              <IngestionControls onJob={onJob} isSignedIn={isSignedIn} />
               <div className="border border-plt-danger/25 rounded-xl p-5 bg-plt-danger/[0.02] flex flex-col gap-3">
                 <div className="flex items-center gap-2.5">
                   <div className="w-1.5 h-1.5 bg-plt-danger rounded-full animate-pulse" />
@@ -341,13 +345,13 @@ function ControlCard({ onJob, models, fetchModels }) {
                   Permanently clears all properties, ML models, and job history from the database.
                 </p>
                 <button
+                  disabled={!isSignedIn}
                   onClick={async () => {
                     if (!window.confirm("🚨 DANGER: This will permanently wipe ALL data. Continue?")) return;
-                    
                     const res = await authFetch(`${API}/api/scrape/reset`, { method: "POST" });
                     if (res.ok) window.location.reload();
                   }}
-                  className="w-full text-sm font-semibold bg-white text-plt-danger border border-plt-danger/30 hover:bg-plt-danger hover:text-white py-2.5 rounded-lg transition-all active:scale-[0.98]"
+                  className="w-full text-sm font-semibold bg-white text-plt-danger border border-plt-danger/30 hover:bg-plt-danger hover:text-white py-2.5 rounded-lg transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:text-plt-danger"
                 >
                   Wipe Database
                 </button>
@@ -355,7 +359,7 @@ function ControlCard({ onJob, models, fetchModels }) {
             </div>
           </TabsContent>
           <TabsContent value="model" className="mt-0">
-            <IntelControls onJob={onJob} models={models} fetchModels={fetchModels} />
+            <IntelControls onJob={onJob} models={models} fetchModels={fetchModels} isSignedIn={isSignedIn} />
           </TabsContent>
         </div>
       </Tabs>
@@ -363,138 +367,7 @@ function ControlCard({ onJob, models, fetchModels }) {
   );
 }
 
-function HUD({ mlStatus, scrapeStatus }) {
-  const soldTotal = scrapeStatus.filter(r => r.listing_type === 'sold').reduce((s, r) => s + parseInt(r.property_count), 0);
-  const forSaleTotal = scrapeStatus.filter(r => r.listing_type === 'for_sale').reduce((s, r) => s + parseInt(r.property_count), 0);
-  const unscored = mlStatus?.counts?.for_sale?.unscored ?? 0;
-  const r2 = mlStatus?.train?.r2_score;
-
-  const stats = [
-    { label: "Sold History",   val: soldTotal.toLocaleString(),            green: soldTotal > 0 },
-    { label: "Active Listings",val: forSaleTotal.toLocaleString(),          green: forSaleTotal > 0 },
-    { label: "Pending Score",  val: unscored.toLocaleString(),              yellow: unscored > 0 },
-    { label: "R² Accuracy",   val: r2 ? parseFloat(r2).toFixed(4) : "—",  green: r2 > 0.8 },
-    { label: "System",        val: "Nominal" },
-  ];
-
-  return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 font-sans">
-      {stats.map(s => (
-        <div key={s.label} className="bg-white border border-plt-border px-4 py-3.5 rounded-xl shadow-sm">
-          <div className="text-[9px] font-bold uppercase tracking-widest text-plt-muted mb-1.5">{s.label}</div>
-          <Val lg green={s.green} yellow={s.yellow}>{s.val}</Val>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// ── Results Chart ─────────────────────────────────────────────────────
-
-const PILL_COLOR = {
-  green:  "bg-plt-success/10 text-plt-success border-plt-success/20",
-  yellow: "bg-amber-50 text-amber-600 border-amber-200",
-  red:    "bg-plt-danger/10 text-plt-danger border-plt-danger/20",
-  default:"bg-slate-100 text-slate-600 border-slate-200",
-};
-
-const BAR_FILL = {
-  "<$0":       "#ef4444",
-  "$0–50k":    "#f97316",
-  "$50–100k":  "#f59e0b",
-  "$100–200k": "#84cc16",
-  "$200–500k": "#22c55e",
-  ">$500k":    "#10b981",
-};
-
-const CHART_CONFIG = { count: { label: "Properties" } };
-
-function Pill({ label, value, color = "default" }) {
-  return (
-    <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[10px] font-semibold ${PILL_COLOR[color]}`}>
-      <span className="font-normal opacity-70">{label}</span>
-      <span>{value}</span>
-    </div>
-  );
-}
-
-function ResultsChart({ refreshKey }) {
-  const [data, setData] = useState(null);
-
-  useEffect(() => {
-    fetch(`${API}/api/ml/results`)
-      .then(r => r.json())
-      .then(setData)
-      .catch(() => {});
-  }, [refreshKey]);
-
-  if (!data || !data.totals || data.totals.total === 0) {
-    return (
-      <div className="bg-white border border-plt-border rounded-xl px-5 py-4 shadow-sm flex items-center gap-4">
-        <div className="w-1.5 h-1.5 bg-plt-accent rounded-full" />
-        <span className="text-[9px] font-bold uppercase tracking-widest text-plt-muted">
-          Opportunity Distribution
-        </span>
-        <span className="text-xs text-plt-muted italic ml-2">
-          Run ML Score to see results
-        </span>
-      </div>
-    );
-  }
-
-  const avgK = data.avg_opportunity >= 0
-    ? `+$${(data.avg_opportunity / 1000).toFixed(0)}k`
-    : `-$${(Math.abs(data.avg_opportunity) / 1000).toFixed(0)}k`;
-
-  return (
-    <div className="bg-white border border-plt-border rounded-xl px-5 py-4 shadow-sm">
-      <div className="flex items-center justify-between flex-wrap gap-3 mb-3">
-        <div className="flex items-center gap-2">
-          <div className="w-1.5 h-1.5 bg-plt-accent rounded-full" />
-          <span className="text-[9px] font-bold uppercase tracking-widest text-plt-muted">
-            Opportunity Distribution · {data.totals.total} scored
-          </span>
-        </div>
-        <div className="flex gap-2 flex-wrap">
-          <Pill label="High ROI >$200k"  value={data.totals.green}  color="green" />
-          <Pill label="Moderate $0–200k" value={data.totals.yellow} color="yellow" />
-          <Pill label="Avg"              value={avgK} />
-        </div>
-      </div>
-      <ChartContainer config={CHART_CONFIG} className="h-[220px] w-full">
-        <BarChart layout="vertical" data={data.distribution.filter(b => b.label !== "<$0")} margin={{ top: 0, right: 24, left: 4, bottom: 0 }}>
-          <CartesianGrid horizontal={false} strokeDasharray="3 3" stroke="#f1f5f9" />
-          <XAxis
-            type="number"
-            tick={{ fontSize: 9, fill: "#94a3b8" }}
-            tickLine={false}
-            axisLine={false}
-            allowDecimals={false}
-          />
-          <YAxis
-            type="category"
-            dataKey="label"
-            width={72}
-            tick={{ fontSize: 9, fill: "#64748b" }}
-            tickLine={false}
-            axisLine={false}
-          />
-          <ChartTooltip
-            cursor={{ fill: "#f8fafc" }}
-            content={<ChartTooltipContent hideLabel />}
-          />
-          <Bar dataKey="count" radius={[0, 4, 4, 0]} maxBarSize={18}>
-            {data.distribution.map(b => (
-              <Cell key={b.label} fill={BAR_FILL[b.label] ?? "#94a3b8"} />
-            ))}
-          </Bar>
-        </BarChart>
-      </ChartContainer>
-    </div>
-  );
-}
-
-// ── Modals ─────────────────────────────────────────────────────────────
+// ── Modals ────────────────────────────────────────────────────────────
 
 const WEIGHTED_DEFAULTS = { sqft: 35, zip: 25, avg_new_build_price_sqft_05mi: 30, lot_sqft: 5, year_built: 5, median_household_income: 0 };
 
@@ -512,18 +385,18 @@ function WeightedScoringModal({ open, onClose, onJob }) {
     const start = Date.now();
     const normalized = {};
     Object.keys(weights).forEach(k => normalized[k] = weights[k] / total);
-    
+
     const res = await authFetch(`${API}/api/ml/score-weighted`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ weights: normalized }),
     });
-    
+
     if (res.ok) {
       const data = await res.json();
       if (data.job_id) onJob(data.job_id);
     }
-    
+
     await delayMinimum(start);
     setRunning(false);
     onClose();
@@ -604,7 +477,7 @@ const ALGOS = [
   { id: "lightgbm",      label: "LightGBM" },
 ];
 
-function IngestionControls({ onJob }) {
+function IngestionControls({ onJob, isSignedIn }) {
   const authFetch = useAuthenticatedFetch();
   const [market, setMarket] = useState("tampa");
   const [customMarket, setCustomMarket] = useState("");
@@ -617,7 +490,7 @@ function IngestionControls({ onJob }) {
 
   const trigger = async (type, params = {}) => {
     const finalMarket = market === "custom" ? customMarket : market;
-    
+
     if (market === "custom" && !customMarket.trim()) {
       alert("Please enter a market name (e.g. 'Miami, FL')");
       return;
@@ -627,12 +500,12 @@ function IngestionControls({ onJob }) {
     const startTime = Date.now();
 
     const body = { type, market: finalMarket, throttle: parseInt(throttle), force_renew: forceRenew, all_zips: true, ...params };
-    const res = await authFetch(`${API}/api/scrape/trigger`, { 
-      method: "POST", 
-      headers: { "Content-Type": "application/json" }, 
-      body: JSON.stringify(body) 
+    const res = await authFetch(`${API}/api/scrape/trigger`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
     });
-    
+
     if (res.ok) {
       const data = await res.json();
       if (data.job_id) onJob(data.job_id);
@@ -648,7 +521,7 @@ function IngestionControls({ onJob }) {
         <div>
           <Label>Market</Label>
           <div className="space-y-2">
-            <Select value={market} onValueChange={setMarket}>
+            <Select value={market} onValueChange={setMarket} disabled={!isSignedIn}>
               <SelectTrigger className="h-10 text-sm font-medium">
                 <SelectValue />
               </SelectTrigger>
@@ -663,19 +536,20 @@ function IngestionControls({ onJob }) {
               </SelectContent>
             </Select>
             {market === "custom" && (
-              <Input 
-                placeholder="City, State (e.g. Miami, FL)" 
+              <Input
+                placeholder="City, State (e.g. Miami, FL)"
                 value={customMarket}
                 onChange={e => setCustomMarket(e.target.value)}
                 className="h-9 text-xs"
                 autoFocus
+                disabled={!isSignedIn}
               />
             )}
           </div>
         </div>
         <div>
           <Label>Throttle</Label>
-          <Select value={throttle} onValueChange={setThrottle}>
+          <Select value={throttle} onValueChange={setThrottle} disabled={!isSignedIn}>
             <SelectTrigger className="h-10 text-sm font-medium">
               <SelectValue />
             </SelectTrigger>
@@ -693,6 +567,7 @@ function IngestionControls({ onJob }) {
           <Checkbox
             checked={forceRenew}
             onCheckedChange={checked => setForceRenew(!!checked)}
+            disabled={!isSignedIn}
           />
           <div className="flex flex-col">
             <span className="text-sm font-semibold text-plt-primary group-hover:text-plt-accent transition-colors">Force re-scrape</span>
@@ -701,17 +576,17 @@ function IngestionControls({ onJob }) {
         </label>
       </div>
 
-      <Btn variant="success" disabled={running.for_sale} onClick={() => trigger("for_sale")}>
+      <Btn variant="success" disabled={!isSignedIn || running.for_sale} onClick={() => trigger("for_sale")}>
         {running.for_sale ? "Syncing active listings..." : "Sync Active Listings"}
       </Btn>
 
       <div className="space-y-3 p-4 bg-slate-50 border border-plt-border rounded-xl">
         <Label>Sold history date range</Label>
         <div className="grid grid-cols-2 gap-3">
-          <Input type="month" value={start} onChange={e => setStart(e.target.value)} className="h-10 text-sm font-medium" />
-          <Input type="month" value={end} onChange={e => setEnd(e.target.value)} className="h-10 text-sm font-medium" />
+          <Input type="month" value={start} onChange={e => setStart(e.target.value)} className="h-10 text-sm font-medium" disabled={!isSignedIn} />
+          <Input type="month" value={end} onChange={e => setEnd(e.target.value)} className="h-10 text-sm font-medium" disabled={!isSignedIn} />
         </div>
-        <Btn variant="success" disabled={running.sold} onClick={() => trigger("sold", { start, end })}>
+        <Btn variant="success" disabled={!isSignedIn || running.sold} onClick={() => trigger("sold", { start, end })}>
           {running.sold ? "Syncing sold history..." : "Sync Sold History"}
         </Btn>
       </div>
@@ -719,7 +594,7 @@ function IngestionControls({ onJob }) {
   );
 }
 
-function IntelControls({ onJob, models, fetchModels }) {
+function IntelControls({ onJob, models, fetchModels, isSignedIn }) {
   const authFetch = useAuthenticatedFetch();
   const [running, setRunning] = useState({});
   const [activating, setActivating] = useState(null);
@@ -742,13 +617,13 @@ function IntelControls({ onJob, models, fetchModels }) {
   const trigger = async (endpoint) => {
     setRunning(p => ({ ...p, [endpoint]: true }));
     const startTime = Date.now();
-    
+
     const res = await authFetch(`${API}/api/ml/${endpoint}`, { method: "POST" });
     if (res.ok) {
       const data = await res.json();
       if (data.job_id) onJob(data.job_id);
     }
-    
+
     await delayMinimum(startTime);
     setRunning(p => ({ ...p, [endpoint]: false }));
   };
@@ -756,33 +631,33 @@ function IntelControls({ onJob, models, fetchModels }) {
   const startTraining = async () => {
     setRunning(p => ({ ...p, train: true }));
     const startTime = Date.now();
-    
+
     const res = await authFetch(`${API}/api/ml/train`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ algorithm, ...trainParams }),
     });
-    
+
     if (res.ok) {
       const data = await res.json();
       if (data.job_id) onJob(data.job_id);
     }
-    
+
     await delayMinimum(startTime);
     setRunning(p => ({ ...p, train: false }));
   };
 
   const activateModel = async (modelId) => {
     setActivating(modelId);
-    const res = await authFetch(`${API}/api/ml/models/${modelId}/activate`, { method: "POST" }); 
-    if (res.ok) await fetchModels(); 
+    const res = await authFetch(`${API}/api/ml/models/${modelId}/activate`, { method: "POST" });
+    if (res.ok) await fetchModels();
     setActivating(null);
   };
 
   const deleteModel = async (modelId) => {
     if (!window.confirm("Permanently delete this model?")) return;
-    const res = await authFetch(`${API}/api/ml/models/${modelId}`, { method: "DELETE" }); 
-    if (res.ok) await fetchModels(); 
+    const res = await authFetch(`${API}/api/ml/models/${modelId}`, { method: "DELETE" });
+    if (res.ok) await fetchModels();
   };
 
   const patchModel = async (modelId) => {
@@ -845,16 +720,28 @@ function IntelControls({ onJob, models, fetchModels }) {
                       {isActive ? (
                         <>
                           <span className="text-[10px] font-semibold px-2.5 py-1 rounded-full bg-plt-success/15 text-plt-success border border-plt-success/25">Active</span>
-                          <button onClick={e => { e.stopPropagation(); deleteModel(m.id); }} className="text-plt-muted hover:text-plt-danger p-1.5 rounded-lg transition-all active:scale-[0.98]">
+                          <button
+                            disabled={!isSignedIn}
+                            onClick={e => { e.stopPropagation(); deleteModel(m.id); }}
+                            className="text-plt-muted hover:text-plt-danger p-1.5 rounded-lg transition-all active:scale-[0.98] disabled:opacity-30 disabled:cursor-not-allowed"
+                          >
                             <TrashIcon />
                           </button>
                         </>
                       ) : (
                         <>
-                          <button onClick={e => { e.stopPropagation(); activateModel(m.id); }} disabled={activating === m.id} className="text-xs font-semibold py-1 px-3 rounded-lg border border-plt-border text-plt-secondary hover:border-plt-accent hover:text-plt-accent transition-all active:scale-[0.98]">
+                          <button
+                            disabled={!isSignedIn || activating === m.id}
+                            onClick={e => { e.stopPropagation(); activateModel(m.id); }}
+                            className="text-xs font-semibold py-1 px-3 rounded-lg border border-plt-border text-plt-secondary hover:border-plt-accent hover:text-plt-accent transition-all active:scale-[0.98] disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:border-plt-border disabled:hover:text-plt-secondary"
+                          >
                             {activating === m.id ? "Mounting..." : "Mount"}
                           </button>
-                          <button onClick={e => { e.stopPropagation(); deleteModel(m.id); }} className="text-plt-muted hover:text-plt-danger p-1.5 rounded-lg transition-all active:scale-[0.98]">
+                          <button
+                            disabled={!isSignedIn}
+                            onClick={e => { e.stopPropagation(); deleteModel(m.id); }}
+                            className="text-plt-muted hover:text-plt-danger p-1.5 rounded-lg transition-all active:scale-[0.98] disabled:opacity-30 disabled:cursor-not-allowed"
+                          >
                             <TrashIcon />
                           </button>
                         </>
@@ -870,9 +757,10 @@ function IntelControls({ onJob, models, fetchModels }) {
                             type="text"
                             value={edit.name}
                             onChange={e => setEditFields(p => ({ ...p, [m.id]: { ...p[m.id], name: e.target.value } }))}
-                            onBlur={() => patchModel(m.id)}
+                            onBlur={() => isSignedIn && patchModel(m.id)}
                             placeholder="Untitled"
-                            className="h-9 text-sm w-full bg-transparent border-none focus:ring-0 font-semibold"
+                            disabled={!isSignedIn}
+                            className="h-9 text-sm w-full bg-transparent border-none focus:ring-0 font-semibold disabled:opacity-50"
                           />
                         </div>
                         <div>
@@ -881,9 +769,10 @@ function IntelControls({ onJob, models, fetchModels }) {
                             type="text"
                             value={edit.description}
                             onChange={e => setEditFields(p => ({ ...p, [m.id]: { ...p[m.id], description: e.target.value } }))}
-                            onBlur={() => patchModel(m.id)}
+                            onBlur={() => isSignedIn && patchModel(m.id)}
                             placeholder="Optional"
-                            className="h-9 text-sm w-full bg-transparent border-none focus:ring-0"
+                            disabled={!isSignedIn}
+                            className="h-9 text-sm w-full bg-transparent border-none focus:ring-0 disabled:opacity-50"
                           />
                         </div>
                       </div>
@@ -912,18 +801,18 @@ function IntelControls({ onJob, models, fetchModels }) {
       <div className="bg-slate-50 border border-plt-border rounded-xl p-4 space-y-4">
         <Label>New Training Run</Label>
 
-        {/* Algorithm selector */}
         <div>
           <div className="text-[9px] font-bold uppercase tracking-widest text-plt-muted mb-1.5 font-sans">Algorithm</div>
           <div className="grid grid-cols-2 gap-1">
             {ALGOS.map(a => (
               <button
                 key={a.id}
+                disabled={!isSignedIn}
                 onClick={() => { setAlgorithm(a.id); setTrainParams({ ...ALGO_PARAMS[a.id] }); }}
-                className={`py-2 px-3 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all duration-150 active:scale-[0.98] ${
+                className={`py-2 px-3 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all duration-150 active:scale-[0.98] disabled:cursor-not-allowed ${
                   algorithm === a.id
-                    ? "bg-plt-accent text-white shadow-sm"
-                    : "bg-white border border-plt-border text-plt-muted hover:text-plt-primary hover:border-plt-accent/40"
+                    ? "bg-plt-accent text-white shadow-sm disabled:opacity-60"
+                    : "bg-white border border-plt-border text-plt-muted hover:text-plt-primary hover:border-plt-accent/40 disabled:opacity-40"
                 }`}
               >
                 {a.label}
@@ -932,7 +821,6 @@ function IntelControls({ onJob, models, fetchModels }) {
           </div>
         </div>
 
-        {/* Dynamic parameter inputs */}
         <div className="grid grid-cols-2 gap-3">
           {Object.entries(trainParams).map(([key, val]) => (
             <div key={key}>
@@ -943,19 +831,20 @@ function IntelControls({ onJob, models, fetchModels }) {
                 step={key === "lr" || key === "test_split" ? "0.01" : key === "alpha" ? "0.1" : "1"}
                 onChange={e => setTrainParams(p => ({ ...p, [key]: parseFloat(e.target.value) || 0 }))}
                 className="h-9 text-sm font-semibold text-right"
+                disabled={!isSignedIn}
               />
             </div>
           ))}
         </div>
 
-        <Btn variant="primary" onClick={startTraining} disabled={running.train}>
+        <Btn variant="primary" onClick={startTraining} disabled={!isSignedIn || running.train}>
           {running.train ? "Starting..." : "Start Training Run"}
         </Btn>
       </div>
 
       {/* Scoring actions */}
       <div className="pt-2 border-t border-plt-border/50">
-        <Btn onClick={() => trigger("score")} disabled={running.score || !activeModel} variant="primary">
+        <Btn onClick={() => trigger("score")} disabled={!isSignedIn || running.score || !activeModel} variant="primary">
           {running.score ? "Scoring..." : "ML Score"}
         </Btn>
       </div>
@@ -972,8 +861,7 @@ function IntelControls({ onJob, models, fetchModels }) {
 // ── Root ──────────────────────────────────────────────────────────────
 
 export default function Operations() {
-  const [mlStatus, setMlStatus] = useState(null);
-  const [scrapeStatus, setScrapeStatus] = useState([]);
+  const { isSignedIn } = useAuth();
   const [jobs, setJobs] = useState([]);
   const [activeJobId, setActiveJobId] = useState(null);
   const [models, setModels] = useState([]);
@@ -987,13 +875,7 @@ export default function Operations() {
 
   const fetchStatus = useCallback(async () => {
     try {
-      const [ml, sc, jb] = await Promise.all([
-        fetch(`${API}/api/ml/status`).then(r => r.json()),
-        fetch(`${API}/api/scrape/status`).then(r => r.json()),
-        fetch(`${API}/api/jobs`).then(r => r.json()),
-      ]);
-      setMlStatus(ml);
-      setScrapeStatus(sc.scrape_status || []);
+      const jb = await fetch(`${API}/api/jobs`).then(r => r.json());
       setJobs(Array.isArray(jb) ? jb : []);
     } catch {}
   }, []);
@@ -1007,30 +889,17 @@ export default function Operations() {
 
   return (
     <div className="flex flex-col h-full overflow-y-auto lg:overflow-hidden bg-plt-bg text-plt-primary font-sans selection:bg-plt-accent selection:text-white custom-scrollbar">
-      {/* System HUD */}
-      <div className="flex-shrink-0 px-4 sm:px-6 pt-4 pb-3">
-        <HUD mlStatus={mlStatus} scrapeStatus={scrapeStatus} />
-      </div>
-
-      {/* Results Chart */}
-      <div className="flex-shrink-0 px-4 sm:px-6 pb-3">
-        <ResultsChart refreshKey={mlStatus?.score?.completed_at || mlStatus?.score_weighted?.completed_at} />
-      </div>
-
-      {/* Main Workspace */}
-      <div className="flex-1 flex flex-col lg:flex-row lg:overflow-hidden px-4 sm:px-6 pb-6 pt-0 gap-5 min-h-0">
-        {/* Left Half: Tabbed control card */}
+      <div className="flex-1 flex flex-col lg:flex-row lg:overflow-hidden px-4 sm:px-6 py-6 gap-5 min-h-0">
         <div className="flex-1 min-w-0 min-h-[360px] sm:min-h-[480px] lg:min-h-0 flex flex-col">
-          <ControlCard onJob={setActiveJobId} models={models} fetchModels={fetchModels} />
+          <ControlCard onJob={setActiveJobId} models={models} fetchModels={fetchModels} isSignedIn={isSignedIn} />
         </div>
-
-        {/* Right Half: Telemetry */}
         <div className="flex-1 min-w-0 min-h-[360px] sm:min-h-[480px] lg:min-h-0 flex flex-col">
           <JobConsole
             selectedId={activeJobId}
             setSelectedId={setActiveJobId}
             jobs={jobs}
             onClear={() => setActiveJobId(null)}
+            isSignedIn={isSignedIn}
           />
         </div>
       </div>
