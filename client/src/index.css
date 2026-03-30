@@ -52,7 +52,7 @@ html, body, #root {
 body {
   background-color: var(--plt-bg);
   color: var(--plt-text-primary);
-  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  font-family: 'Helvetica Neue', Helvetica, 'Plus Jakarta Sans', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
