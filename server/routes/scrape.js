@@ -3,8 +3,6 @@ const router = require("express").Router();
 const { requireAuth, requireAdmin } = require("../middleware/auth");
 
 const WORKER_URL = process.env.WORKER_URL || "http://data-worker:5000";
-const VALID_MARKETS = ["tampa", "orlando", "winter_garden", "winter_park", "all"];
-
 /**
  * POST /api/scrape/trigger
  */
@@ -19,9 +17,6 @@ router.post("/trigger", requireAuth, async (req, res) => {
   }
   if (zip && !/^\d{5}$/.test(zip)) {
     return res.status(400).json({ error: "zip must be 5 digits" });
-  }
-  if (market && !VALID_MARKETS.includes(market)) {
-    return res.status(400).json({ error: "Invalid market" });
   }
   if (type === "sold" && !(start && end)) {
     return res.status(400).json({ error: 'type "sold" requires start and end (YYYY-MM)' });

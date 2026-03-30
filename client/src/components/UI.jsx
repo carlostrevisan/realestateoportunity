@@ -3,11 +3,10 @@
 
 import { Label as ShadLabel } from "./ui/label";
 import { Button } from "./ui/button";
-import { Badge } from "./ui/badge";
 
 export function Label({ children }) {
   return (
-    <ShadLabel className="text-[9px] font-black uppercase tracking-[0.15em] text-plt-muted mb-1.5 block font-sans">
+    <ShadLabel className="text-[9px] font-bold uppercase tracking-widest text-plt-muted mb-1.5 block">
       {children}
     </ShadLabel>
   );
@@ -19,7 +18,7 @@ export function Val({ children, green, yellow, red, lg }) {
   if (yellow) color = "text-plt-warning";
   if (red) color = "text-plt-danger";
   return (
-    <span className={`${color} font-sans font-bold ${lg ? "text-xl font-black tracking-tighter" : "text-xs"}`}>
+    <span className={`${color} ${lg ? "text-xl font-black tracking-tighter" : "text-xs font-bold"}`}>
       {children}
     </span>
   );
@@ -40,7 +39,7 @@ export function StatusDot({ status }) {
 
 export function Panel({ title, tag, children }) {
   return (
-    <div className="bg-white border border-plt-border rounded-xl shadow-sm font-sans">
+    <div className="bg-white border border-plt-border rounded-xl shadow-sm">
       <div className="flex items-center gap-2 px-5 py-3 border-b border-plt-border">
         <span className="text-[9px] font-bold uppercase tracking-widest text-plt-muted">{title}</span>
         {tag && <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-plt-bg text-plt-muted border border-plt-border">{tag}</span>}
@@ -66,7 +65,7 @@ export function Btn({ children, onClick, disabled, variant = "primary", classNam
       disabled={disabled}
       onClick={onClick}
       data-variant={variant}
-      className={`w-full font-sans ${className}`}
+      className={`w-full ${className}`}
     >
       {children}
     </Button>
@@ -89,7 +88,7 @@ export function StatusBadge({ job, isActive, onClick }) {
     <button
       onClick={onClick}
       data-active={isActive}
-      className={`flex items-center gap-2.5 px-3 py-2 rounded-xl transition-all duration-150 active:scale-[0.98] whitespace-nowrap font-sans ${
+      className={`flex items-center gap-2.5 px-3 py-2 rounded-xl transition-all duration-150 active:scale-[0.98] whitespace-nowrap ${
         isActive
           ? "bg-plt-accent border-2 border-plt-accent text-white shadow-lg shadow-plt-accent/20"
           : `bg-white border-2 border-l-4 ${leftBorder} border-plt-border text-plt-secondary hover:border-plt-accent/50 hover:shadow-sm`

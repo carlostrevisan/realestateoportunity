@@ -47,7 +47,7 @@ function buildPopupHtml({ minWidth = 180, header, headerFontSize = 10, headerCol
     `<span style="color:#64748b;font-weight:600;">${label}</span><span style="${valueStyle}">${value}</span>`
   ).join('');
   return `
-    <div style="min-width:${minWidth}px;font-family:'Plus Jakarta Sans',sans-serif;color:#0f172a;padding:4px;">
+    <div style="min-width:${minWidth}px;color:#0f172a;padding:4px;">
       <div style="font-weight:800;text-transform:uppercase;letter-spacing:0.05em;border-bottom:2px solid #e2e8f0;padding-bottom:6px;margin-bottom:8px;font-size:${headerFontSize}px;${headerColorStyle}">${header}</div>
       ${addressHtml}
       <div style="color:#64748b;font-size:10px;font-weight:${locationWeight};text-transform:${locationTransform};margin-bottom:10px;">${location}</div>

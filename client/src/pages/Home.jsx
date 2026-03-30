@@ -75,7 +75,7 @@ const FACTS = [
 
 export default function Home() {
   return (
-    <div className="flex-1 overflow-y-auto bg-plt-bg font-sans">
+    <div className="flex-1 overflow-y-auto bg-plt-bg">
       <div className="max-w-3xl mx-auto px-6 py-10 space-y-12">
 
         {/* Hero */}

@@ -122,7 +122,7 @@ function AppNav() {
 export default function App() {
   return (
     <BrowserRouter>
-      <div className="h-screen w-screen bg-plt-bg text-plt-primary flex flex-col overflow-hidden selection:bg-plt-accent selection:text-white">
+      <div className="h-screen w-screen bg-plt-bg text-plt-primary flex flex-col overflow-hidden selection:bg-plt-accent selection:text-white font-sans">
         <AppNav />
         <main className="flex-1 flex flex-col overflow-hidden relative">
           <Routes>

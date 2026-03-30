@@ -184,7 +184,7 @@ function JobConsole({ selectedId, setSelectedId, jobs = [], onClear, isSignedIn 
     : "Ready";
 
   return (
-    <div className="flex flex-col flex-1 bg-white border border-plt-border overflow-hidden relative shadow-sm rounded-xl font-sans">
+    <div className="flex flex-col flex-1 bg-white border border-plt-border overflow-hidden relative shadow-sm rounded-xl">
       <Tabs defaultValue="live" className="flex flex-col flex-1 min-h-0">
         {/* Console Header */}
         <div className="flex items-center justify-between px-3 sm:px-5 py-3 border-b border-plt-border bg-white flex-shrink-0">
@@ -258,7 +258,7 @@ function JobConsole({ selectedId, setSelectedId, jobs = [], onClear, isSignedIn 
           {/* Log View */}
           <div
             ref={scrollRef}
-            className="flex-1 min-h-0 overflow-y-auto relative px-6 py-5 text-[11px] leading-relaxed bg-slate-50 custom-scrollbar selection:bg-plt-accent selection:text-white font-sans"
+            className="flex-1 min-h-0 overflow-y-auto relative px-6 py-5 text-[11px] leading-relaxed bg-slate-50 custom-scrollbar selection:bg-plt-accent selection:text-white"
           >
             {!selectedJob && (
               <div className="absolute inset-0 flex flex-col items-center justify-center text-center opacity-50">
@@ -306,7 +306,7 @@ function JobConsole({ selectedId, setSelectedId, jobs = [], onClear, isSignedIn 
 function ControlCard({ onJob, models, fetchModels, isSignedIn }) {
   const authFetch = useAuthenticatedFetch();
   return (
-    <div className="flex flex-col flex-1 bg-white border border-plt-border overflow-hidden relative shadow-sm rounded-xl font-sans">
+    <div className="flex flex-col flex-1 bg-white border border-plt-border overflow-hidden relative shadow-sm rounded-xl">
       <Tabs defaultValue="acquisition" className="flex flex-col flex-1 min-h-0">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-plt-border bg-white flex-shrink-0">
@@ -404,7 +404,7 @@ function WeightedScoringModal({ open, onClose, onJob }) {
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-md font-sans">
+      <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>Weighted Scoring</DialogTitle>
           <p className="text-xs text-plt-muted mt-0.5">Manually bias factor weights before scoring</p>
@@ -802,7 +802,7 @@ function IntelControls({ onJob, models, fetchModels, isSignedIn }) {
         <Label>New Training Run</Label>
 
         <div>
-          <div className="text-[9px] font-bold uppercase tracking-widest text-plt-muted mb-1.5 font-sans">Algorithm</div>
+          <div className="text-[9px] font-bold uppercase tracking-widest text-plt-muted mb-1.5">Algorithm</div>
           <div className="grid grid-cols-2 gap-1">
             {ALGOS.map(a => (
               <button
@@ -930,7 +930,7 @@ export default function Operations() {
   }, [fetchStatus, fetchModels, fetchEngineStatus]);
 
   return (
-    <div className="flex flex-col h-full overflow-y-auto lg:overflow-hidden bg-plt-bg text-plt-primary font-sans selection:bg-plt-accent selection:text-white custom-scrollbar">
+    <div className="flex flex-col h-full overflow-y-auto lg:overflow-hidden bg-plt-bg text-plt-primary selection:bg-plt-accent selection:text-white custom-scrollbar">
       <div className="px-4 sm:px-6 pt-5 pb-0">
         <EngineHUD mlStatus={mlStatus} scrapeStatus={scrapeStatus} />
       </div>

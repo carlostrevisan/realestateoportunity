@@ -45,7 +45,7 @@ function KpiCard({ icon: Icon, label, value, subtitle, accentClass }) {
     <Card className="bg-white border-plt-border shadow-sm">
       <CardHeader className="pb-2 pt-4 px-5">
         <div className="flex items-center justify-between">
-          <span className="text-[9px] font-black uppercase tracking-[0.15em] text-plt-muted font-sans">
+          <span className="text-[9px] font-bold uppercase tracking-widest text-plt-muted">
             {label}
           </span>
           <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${accentClass}`}>
@@ -54,11 +54,11 @@ function KpiCard({ icon: Icon, label, value, subtitle, accentClass }) {
         </div>
       </CardHeader>
       <CardContent className="px-5 pb-4">
-        <div className="text-2xl font-black tracking-tighter text-plt-primary font-sans">
+        <div className="text-2xl font-black tracking-tighter text-plt-primary">
           {value ?? "-"}
         </div>
         {subtitle && (
-          <p className="text-[10px] text-plt-muted mt-0.5 font-sans">{subtitle}</p>
+          <p className="text-[10px] text-plt-muted mt-0.5">{subtitle}</p>
         )}
       </CardContent>
     </Card>
@@ -216,7 +216,7 @@ export default function Reporting() {
   const s = stats;
 
   return (
-    <div className="flex-1 overflow-y-auto bg-plt-bg p-5 md:p-7 font-sans">
+    <div className="flex-1 overflow-y-auto bg-plt-bg p-5 md:p-7">
       <div className="max-w-5xl mx-auto space-y-6">
 
         {/* ── Opportunity Distribution ── */}
