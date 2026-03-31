@@ -23,13 +23,13 @@ export default function Help() {
           <SectionTitle>Pipeline</SectionTitle>
           <div className="grid md:grid-cols-3 gap-3">
             <PhaseCard num="01" title="Ingestion">
-              Scrapes Realtor.com via HomeHarvest, cleans the data, and fetches median household income from the U.S. Census Bureau per ZIP code.
+              Scrapes Realtor.com via HomeHarvest, captures beds, baths, sqft, lot size, and coordinates. Cleans the data and fetches median household income from the U.S. Census Bureau per ZIP code. Optionally enriches with FL DOE school quality ratings per ZIP.
             </PhaseCard>
             <PhaseCard num="02" title="Modeling">
-              Trains an ML model on recent nearby sales to predict the price a new build would fetch on the same lot.
+              Trains an ML model on recent nearby sales (10 features including geospatial new-build comps, beds/baths, month sold, and city) to predict the price a new build would fetch on the same lot. Uses a forward-looking temporal split to prevent data leakage.
             </PhaseCard>
             <PhaseCard num="03" title="Scoring">
-              Computes the opportunity result for every property and scores it. Positive means potentially profitable. Results are stored in Postgres and surfaced on the map.
+              Computes a realistic total development cost (acquisition + hard build + soft costs + contingency + carrying) and subtracts it from the predicted rebuild value. XGBoost also produces confidence intervals (10th–90th percentile). Results are stored in Postgres and surfaced on the map.
             </PhaseCard>
           </div>
         </section>
@@ -37,22 +37,37 @@ export default function Help() {
         <section className="mb-10">
           <SectionTitle>Formula</SectionTitle>
           <Card>
-            <CardContent className="p-6 text-center">
-              <div className="text-lg font-black tracking-tight text-plt-primary mb-6">
-                Opportunity = <span className="text-plt-accent">Predicted Value</span> − (<span className="text-plt-danger">Acquisition</span> + <span className="text-plt-danger">Construction</span>)
+            <CardContent className="p-6">
+              <div className="text-center mb-6">
+                <div className="text-base font-black tracking-tight text-plt-primary mb-1">
+                  Opportunity = <span className="text-plt-accent">Predicted Value</span> − <span className="text-plt-danger">Total Dev Cost</span>
+                </div>
+                <div className="text-[11px] text-plt-muted">
+                  Total Dev Cost = list price × 1.08 + (sqft × $175) × 1.36
+                </div>
               </div>
-              <div className="grid md:grid-cols-3 gap-4 text-left text-xs">
+              <div className="grid md:grid-cols-2 gap-4 text-left text-xs mb-4">
                 <div className="p-3 bg-plt-bg rounded border border-plt-border">
                   <span className="text-plt-accent font-bold uppercase tracking-wider block mb-1">Predicted Value</span>
-                  <span className="text-plt-secondary">What the ML model says a new build on that lot would sell for.</span>
+                  <span className="text-plt-secondary">What the ML model says a new build on that lot would sell for today, based on 10 features including nearby new-build comps, beds/baths, income, and city.</span>
                 </div>
                 <div className="p-3 bg-plt-bg rounded border border-plt-border">
-                  <span className="text-plt-danger font-bold uppercase tracking-wider block mb-1">Acquisition</span>
-                  <span className="text-plt-secondary">Current list price of the property.</span>
+                  <span className="text-plt-danger font-bold uppercase tracking-wider block mb-1">Total Dev Cost</span>
+                  <span className="text-plt-secondary">Acquisition with carrying costs (×1.08) plus hard construction with soft costs, contingency, and financing (×1.36). More conservative than a simple sum.</span>
+                </div>
+              </div>
+              <div className="grid md:grid-cols-3 gap-3 text-xs">
+                <div className="p-3 bg-plt-bg rounded border border-plt-border">
+                  <span className="text-plt-muted font-bold uppercase tracking-wider block mb-1 text-[10px]">× 1.08 on Acquisition</span>
+                  <span className="text-plt-secondary">Closing costs, title, legal, and short-term carrying.</span>
                 </div>
                 <div className="p-3 bg-plt-bg rounded border border-plt-border">
-                  <span className="text-plt-danger font-bold uppercase tracking-wider block mb-1">Construction</span>
-                  <span className="text-plt-secondary">Rebuild cost at $175/sqft (Florida baseline).</span>
+                  <span className="text-plt-muted font-bold uppercase tracking-wider block mb-1 text-[10px]">× 1.36 on Hard Build</span>
+                  <span className="text-plt-secondary">+18% soft (design, permits, insurance) +10% contingency +8% construction financing.</span>
+                </div>
+                <div className="p-3 bg-plt-bg rounded border border-plt-border">
+                  <span className="text-plt-muted font-bold uppercase tracking-wider block mb-1 text-[10px]">Confidence Range</span>
+                  <span className="text-plt-secondary">XGBoost also trains q10/q90 quantile models. The map popup and detail panel show the 10th–90th percentile range for each property.</span>
                 </div>
               </div>
             </CardContent>

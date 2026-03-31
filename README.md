@@ -6,12 +6,14 @@ A full-stack investment analysis tool that identifies **Buy, Demolish, Rebuild**
 
 ## What It Does
 
-- Scrapes live MLS listings via HomeHarvest (Realtor.com) by market and date range
+- Scrapes live MLS listings via HomeHarvest (Realtor.com) by market and date range, capturing beds, baths, sqft, lot size, and coordinates
 - Cleans and filters data to single-family homes within investment-relevant parameters
 - Enriches properties with ZIP-level median household income from the US Census API
-- Trains a model (XGBoost, Random Forest, Ridge, or LightGBM) to predict post-rebuild property value using geospatial features (0.5-mile radius new-build comps)
-- Scores every for-sale property: `predicted_rebuild_value − (list_price + sqft × construction_cost/sqft)`
-- Displays results on a live map with color-coded ROI markers
+- Optionally enriches with FL DOE school quality ratings per ZIP (`school_fetcher.py`)
+- Trains a model (XGBoost, Random Forest, Ridge, or LightGBM) on 10 features including geospatial new-build comps (0.5-mile radius), beds/baths, month sold, and city encoding — using a forward-looking temporal train/test split
+- Scores every for-sale property using a realistic BDR cost formula that accounts for soft costs, carrying costs, and contingency
+- Generates confidence intervals (10th–90th percentile range) when using XGBoost via quantile regression
+- Displays results on a live map with color-coded ROI markers and per-property confidence bands
 - Tracks all scrape, train, and score jobs with a real-time console
 - Exports filtered results to CSV
 
@@ -50,6 +52,11 @@ DB_NAME=realestate                # optional, defaults to realestate
 CLERK_PUBLISHABLE_KEY=pk_live_...
 CLERK_SECRET_KEY=sk_live_...
 VITE_CLERK_PUBLISHABLE_KEY=pk_live_...
+
+# Optional: school quality enrichment (Tier 3)
+# Set one of these to enable the /api/schools/fetch endpoint:
+FLDOE_SCHOOL_DATA_PATH=/path/to/school_grades.csv   # local CSV file
+FLDOE_SCHOOL_GRADES_URL=https://...                  # remote CSV URL
 ```
 
 ### Run the Stack
@@ -79,6 +86,8 @@ The app will be available at `http://localhost` (or your domain over HTTPS via C
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/api/opportunities` | GET | GeoJSON FeatureCollection of scored properties |
+| `/api/opportunities/filters` | GET | Unique cities and ZIP codes for dropdowns |
+| `/api/opportunities/:id/comparables` | GET | Comparable sold listings for a property |
 | `/api/stats` | GET | Aggregate KPIs (totals, model R², last run) |
 | `/api/scrape/trigger` | POST | Trigger a scrape job |
 | `/api/scrape/status` | GET | Per-market property counts by listing type |
@@ -90,8 +99,9 @@ The app will be available at `http://localhost` (or your domain over HTTPS via C
 | `/api/jobs` | GET | List recent jobs |
 | `/api/jobs/:id` | GET | Poll a specific job's logs and status |
 | `/api/export/csv` | GET | Export filtered opportunities as CSV |
+| `/api/schools/fetch` | POST | Trigger FL DOE school ratings ingest (requires env var) |
 
-**Query params for `/api/opportunities`:** `zip`, `min_roi`, `max_year_built`, `limit`
+**Query params for `/api/opportunities`:** `zip`, `city`, `min_roi`, `min_year_built`, `max_year_built`, `listing_type`, `limit`
 
 ---
 
@@ -99,18 +109,38 @@ The app will be available at `http://localhost` (or your domain over HTTPS via C
 
 The model is trained on new-build sold comps and predicts post-rebuild market value. Four algorithms are supported: `xgboost` (default), `random_forest`, `ridge`, `lightgbm`.
 
-**Opportunity score formula:**
+**Realistic BDR cost formula:**
 
 ```
-opportunity_result = predicted_rebuild_value − (list_price + sqft × construction_cost_per_sqft)
+hard_cost        = sqft × construction_cost_per_sqft
+total_dev_cost   = list_price × 1.08 + hard_cost × 1.36
+opportunity_result = predicted_rebuild_value − total_dev_cost
 ```
 
-- `construction_cost_per_sqft` defaults to $175/sqft (Florida market rate)
-- Positive score = potentially profitable teardown candidate
+The multipliers reflect real BDR project economics:
+- `× 1.08` on acquisition — closing costs, carrying costs, legal
+- `× 1.36` on hard construction — 18% soft costs (design, permits, insurance) + 10% contingency + 8% financing
 
-**Feature set:** `sqft`, `lot_sqft`, `year_built`, `median_household_income`, `zip`, `avg_new_build_price_sqft_05mi`
+`construction_cost_per_sqft` defaults to $175/sqft (Florida market rate). Positive score = potentially profitable teardown candidate.
 
-The geospatial feature (`avg_new_build_price_sqft_05mi`) is computed per-property using a 0.5-mile haversine radius against the sold dataset.
+**Feature set (10 features):**
+
+| Feature | Description |
+|---------|-------------|
+| `sqft` | Living area square footage |
+| `lot_sqft` | Lot size |
+| `year_built` | Age of structure |
+| `beds` | Bedroom count |
+| `baths` | Bathroom count |
+| `month_sold` | Month sold (1–12), captures seasonality |
+| `median_household_income` | ZIP-level income from US Census |
+| `zip` | Ordinal-encoded ZIP code |
+| `city_encoded` | Ordinal-encoded city |
+| `avg_new_build_price_sqft_05mi` | Avg $/sqft of new builds within 0.5 miles (haversine) |
+
+**Train/test split:** Forward-looking temporal split — trained on the oldest 80% of sold dates, tested on the newest 20%. Prevents data leakage from future comps into training.
+
+**Confidence intervals (XGBoost only):** Two additional quantile models (q10 / q90) are trained alongside the main model. The resulting `opp_low` / `opp_high` bounds are stored per property and displayed in the map popup and detail panel.
 
 **ROI color coding on the map:**
 - **Green** — opportunity > $200k
@@ -156,14 +186,16 @@ docker compose down -v
 │   ├── src/pages/        # Home, Dashboard (map), Operations, Reporting, Help
 │   └── nginx.conf        # Serves static build + proxies /api to backend
 ├── server/               # Express backend
-│   └── routes/           # opportunities, scrape, ml, jobs, stats, export
+│   └── routes/           # opportunities, scrape, ml, jobs, stats, export, schools
 ├── data-engine/          # Python scraper, cleaner, ML model
 │   ├── scraper.py        # Fetches MLS data via HomeHarvest
-│   ├── cleaner.py        # Data quality filters
+│   ├── cleaner.py        # Data quality filters (captures beds/baths)
 │   ├── census_fetcher.py # ZIP-level income from Census API
-│   ├── ml_model.py       # Training, scoring, weighted scoring
+│   ├── school_fetcher.py # ZIP-level school ratings from FL DOE (optional)
+│   ├── ml_model.py       # Training (temporal split, quantile), scoring, weighted scoring
 │   ├── runner.py         # Flask job runner (called by backend)
-│   └── db.py             # PostgreSQL connection & queries
+│   ├── db.py             # PostgreSQL connection & queries
+│   └── tests/            # pytest suite: test_db, test_cleaner, test_ml_model, test_school_fetcher
 ├── db/
 │   └── init.sql          # Schema and seed structure
 ├── docker-compose.yml

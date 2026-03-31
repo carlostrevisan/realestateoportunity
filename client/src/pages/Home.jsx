@@ -19,7 +19,7 @@ const PIPELINE = [
   {
     step: "04",
     label: "Score",
-    detail: "Each active listing scored: predicted value minus asking price = opportunity delta, ranked best→worst.",
+    detail: "Each active listing scored: predicted rebuild value minus total development cost (acquisition + construction + soft costs) = opportunity delta, ranked best→worst.",
   },
   {
     step: "05",
@@ -68,9 +68,9 @@ const SECTIONS = [
 ];
 
 const FACTS = [
-  "Listings scraped from Realtor.com via HomeHarvest - no API key needed",
-  "XGBoost + LightGBM ensembled; trained on 90-day sold comps per ZIP code",
-  "Opportunity score = (predicted rebuild value − list price) / list price × 100",
+  "Listings scraped from Realtor.com via HomeHarvest — beds, baths, sqft, lot size, and coordinates captured automatically",
+  "XGBoost trained on 10 features including geospatial new-build comps (0.5-mi radius), beds/baths, month sold, and city — using a forward-looking temporal split",
+  "Realistic BDR cost: acquisition × 1.08 + hard build × 1.36 (soft costs, contingency, carrying) — XGBoost also produces 10th–90th percentile confidence intervals",
 ];
 
 export default function Home() {
