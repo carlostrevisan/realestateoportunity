@@ -124,6 +124,8 @@ def normalize_for_db(df: pd.DataFrame, default_zip: str = None) -> list[dict]:
         "sold_price":    _find_col(df, ["sold_price", "close_price", "last_sold_price"]),
         "sold_date":     _find_col(df, ["sold_date", "close_date", "date_sold", "last_sold_date"]),
         "property_type": _find_col(df, ["style", "property_type", "home_type", "type"]),
+        "beds":          _find_col(df, ["beds", "bedrooms", "beds_min"]),
+        "baths":         _find_col(df, ["full_baths", "baths", "bathrooms", "total_baths"]),
     }
 
     # Select and rename columns that exist in df

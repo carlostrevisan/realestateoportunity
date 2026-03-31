@@ -6,9 +6,6 @@ import "./index.css";
 import "leaflet/dist/leaflet.css";
 
 const clerkAppearance = {
-  layout: {
-    unsafe_disableDevelopmentModeWarnings: false,
-  },
   elements: {
     card: "w-full max-w-[calc(100vw-2rem)] sm:max-w-md mx-auto",
     rootBox: "w-full",

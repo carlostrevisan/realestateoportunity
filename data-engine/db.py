@@ -101,6 +101,22 @@ def ensure_schema():
         ALTER TABLE model_runs ADD COLUMN IF NOT EXISTS name             VARCHAR(100);
         ALTER TABLE model_runs ADD COLUMN IF NOT EXISTS description      TEXT;
 
+        -- Tier 1: beds/baths on properties
+        ALTER TABLE properties ADD COLUMN IF NOT EXISTS beds  SMALLINT;
+        ALTER TABLE properties ADD COLUMN IF NOT EXISTS baths DECIMAL(3,1);
+
+        -- Tier 2: confidence interval bounds
+        ALTER TABLE properties ADD COLUMN IF NOT EXISTS opp_low  INTEGER;
+        ALTER TABLE properties ADD COLUMN IF NOT EXISTS opp_high INTEGER;
+
+        -- Tier 3: school ratings per ZIP
+        CREATE TABLE IF NOT EXISTS zip_school (
+            zip          VARCHAR(10) PRIMARY KEY,
+            avg_rating   DECIMAL(3,1),
+            school_count SMALLINT,
+            fetched_at   TIMESTAMPTZ DEFAULT NOW()
+        );
+
         CREATE INDEX IF NOT EXISTS idx_properties_zip ON properties(zip);
         CREATE INDEX IF NOT EXISTS idx_properties_opportunity ON properties(opportunity_result DESC);
         CREATE INDEX IF NOT EXISTS idx_properties_listing_type ON properties(listing_type);
@@ -120,11 +136,13 @@ def upsert_properties(records: list[dict], listing_type: str = "sold") -> int:
         INSERT INTO properties (
             mls_id, address, city, zip, lat, lng,
             year_built, sqft, lot_sqft,
+            beds, baths,
             list_price, sold_price, sold_date, property_type,
             listing_type, updated_at
         ) VALUES (
             %(mls_id)s, %(address)s, %(city)s, %(zip)s, %(lat)s, %(lng)s,
             %(year_built)s, %(sqft)s, %(lot_sqft)s,
+            %(beds)s, %(baths)s,
             %(list_price)s, %(sold_price)s, %(sold_date)s, %(property_type)s,
             %(listing_type)s, NOW()
         )
@@ -132,6 +150,8 @@ def upsert_properties(records: list[dict], listing_type: str = "sold") -> int:
             list_price    = EXCLUDED.list_price,
             sold_price    = EXCLUDED.sold_price,
             sold_date     = EXCLUDED.sold_date,
+            beds          = EXCLUDED.beds,
+            baths         = EXCLUDED.baths,
             listing_type  = EXCLUDED.listing_type,
             updated_at    = NOW()
         WHERE properties.updated_at < EXCLUDED.updated_at
@@ -176,13 +196,14 @@ def fetch_sold_mls_ids() -> set[str]:
 def fetch_sold_for_training() -> list[dict]:
     query = """
         SELECT p.id, p.mls_id, p.zip, p.city, p.sqft, p.lot_sqft, p.year_built,
+               p.beds, p.baths,
                p.lat, p.lng,
                p.list_price, p.sold_price, p.sold_date,
                p.construction_cost_per_sqft, zi.median_household_income
         FROM properties p
         LEFT JOIN zip_income zi ON p.zip = zi.zip
         WHERE p.listing_type = 'sold' AND p.sqft > 0 AND p.sold_price > 0
-        ORDER BY p.id
+        ORDER BY p.sold_date ASC NULLS LAST, p.id
     """
     with get_cursor() as cur:
         cur.execute(query)
@@ -191,9 +212,10 @@ def fetch_sold_for_training() -> list[dict]:
 
 def fetch_for_sale_for_scoring() -> list[dict]:
     query = """
-        SELECT p.id, p.mls_id, p.zip, p.sqft, p.lot_sqft, p.year_built, 
+        SELECT p.id, p.mls_id, p.zip, p.city, p.sqft, p.lot_sqft, p.year_built,
+               p.beds, p.baths,
                p.lat, p.lng,
-               p.list_price, p.sold_price, 
+               p.list_price, p.sold_price,
                p.construction_cost_per_sqft, zi.median_household_income
         FROM properties p
         LEFT JOIN zip_income zi ON p.zip = zi.zip
@@ -207,9 +229,30 @@ def fetch_for_sale_for_scoring() -> list[dict]:
 
 def write_opportunity_scores(scores: list[dict]):
     if not scores: return
-    update_sql = "UPDATE properties SET predicted_rebuild_value=%(predicted_rebuild_value)s, opportunity_result=%(opportunity_result)s, updated_at=NOW() WHERE id=%(id)s"
+    update_sql = """
+        UPDATE properties SET
+            predicted_rebuild_value = %(predicted_rebuild_value)s,
+            opportunity_result      = %(opportunity_result)s,
+            opp_low                 = %(opp_low)s,
+            opp_high                = %(opp_high)s,
+            updated_at              = NOW()
+        WHERE id = %(id)s
+    """
     with get_cursor() as cur:
         psycopg2.extras.execute_batch(cur, update_sql, scores, page_size=100)
+
+
+def upsert_zip_school(zip_code: str, avg_rating: float, school_count: int):
+    query = """
+        INSERT INTO zip_school (zip, avg_rating, school_count, fetched_at)
+        VALUES (%s, %s, %s, NOW())
+        ON CONFLICT (zip) DO UPDATE SET
+            avg_rating   = EXCLUDED.avg_rating,
+            school_count = EXCLUDED.school_count,
+            fetched_at   = NOW()
+    """
+    with get_cursor() as cur:
+        cur.execute(query, (zip_code, avg_rating, school_count))
 
 
 def upsert_zip_income(zip_code: str, income: int):

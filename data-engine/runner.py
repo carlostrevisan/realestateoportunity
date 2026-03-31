@@ -284,6 +284,13 @@ def run_census():
     return jsonify({"job_id": job_id, "status": "started"})
 
 
+@app.post("/run/schools")
+def run_schools():
+    job_id = _make_job("schools")
+    _spawn(job_id, [sys.executable, "school_fetcher.py", "--all"])
+    return jsonify({"job_id": job_id, "status": "started"})
+
+
 @app.post("/reset")
 def reset_data():
     """Deletes the persistent CSV file."""

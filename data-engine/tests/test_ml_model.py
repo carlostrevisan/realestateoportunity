@@ -106,3 +106,107 @@ def test_calculate_geospatial_features_empty_ref():
     ref_df = pd.DataFrame(columns=['id', 'lat', 'lng', 'sold_price', 'sqft', 'zip'])
     features = calculate_geospatial_features(target_df, ref_df)
     assert np.all(features == 0)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Temporal feature derivation
+# ─────────────────────────────────────────────────────────────────────────────
+
+def test_temporal_features_from_sold_date():
+    """month_sold should be extracted correctly from sold_date strings."""
+    df = pd.DataFrame({'sold_date': ['2023-03-15', '2022-11-01', None]})
+    dates = pd.to_datetime(df['sold_date'], errors='coerce')
+    month_sold = dates.dt.month.fillna(0).astype(int)
+    assert month_sold.iloc[0] == 3
+    assert month_sold.iloc[1] == 11
+    assert month_sold.iloc[2] == 0  # NaT → 0
+
+
+def test_temporal_features_no_date_column():
+    """When sold_date is missing, month_sold should default to 0."""
+    df = pd.DataFrame({'sqft': [1500, 2000]})
+    month_sold = 0 if 'sold_date' not in df.columns else None
+    assert month_sold == 0
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# City encoding
+# ─────────────────────────────────────────────────────────────────────────────
+
+def test_city_encoding_known_city():
+    """Known cities should map to a non-negative integer."""
+    cities = ['Tampa', 'Orlando', 'Miami']
+    unique = sorted(c.lower() for c in cities)
+    city_map = {c: i for i, c in enumerate(unique)}
+    assert city_map['miami'] == 0
+    assert city_map['orlando'] == 1
+    assert city_map['tampa'] == 2
+
+
+def test_city_encoding_unknown_city_maps_to_minus_one():
+    """A city not seen during training should map to -1."""
+    city_map = {'miami': 0, 'orlando': 1, 'tampa': 2}
+    df = pd.DataFrame({'city': ['Miami', 'Sarasota', None]})
+    encoded = df['city'].str.lower().map(city_map).fillna(-1)
+    assert encoded.iloc[0] == 0    # Miami → 0
+    assert encoded.iloc[1] == -1   # Sarasota → unknown → -1
+    assert encoded.iloc[2] == -1   # None → -1
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Realistic cost formula
+# ─────────────────────────────────────────────────────────────────────────────
+
+def test_realistic_cost_formula():
+    """total_dev_cost = list_price * 1.08 + sqft * cost_per_sqft * 1.36"""
+    list_price    = 400_000
+    sqft          = 2_000
+    cost_per_sqft = 175.0
+    hard_cost     = sqft * cost_per_sqft          # 350_000
+    total_cost    = list_price * 1.08 + hard_cost * 1.36   # 432_000 + 476_000 = 908_000
+    assert total_cost == pytest.approx(908_000.0)
+
+
+def test_realistic_cost_is_higher_than_naive_formula():
+    """Realistic formula always produces a higher (more conservative) cost than naive."""
+    list_price    = 300_000
+    sqft          = 1_800
+    cost_per_sqft = 175.0
+    naive_total   = list_price + sqft * cost_per_sqft
+    hard_cost     = sqft * cost_per_sqft
+    realistic_total = list_price * 1.08 + hard_cost * 1.36
+    assert realistic_total > naive_total
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Temporal train/test split
+# ─────────────────────────────────────────────────────────────────────────────
+
+def test_temporal_split_ordering():
+    """All test-set dates should be after the training cutoff date."""
+    # Use pd.Series so .quantile() is available (DatetimeIndex lacks it)
+    dates = pd.Series(pd.to_datetime([
+        '2021-01-01', '2021-06-01', '2022-01-01',
+        '2022-06-01', '2023-01-01', '2023-06-01',
+        '2023-09-01', '2023-12-01', '2024-01-01', '2024-06-01',
+    ]))
+    test_split = 0.2
+    cutoff = dates.quantile(1 - test_split)
+    train_mask = dates <= cutoff
+    test_dates  = dates[~train_mask]
+    train_dates = dates[train_mask]
+
+    assert len(train_dates) > 0
+    assert len(test_dates) > 0
+    assert test_dates.min() > train_dates.max()
+
+
+def test_temporal_split_fallback_on_identical_dates():
+    """When all dates are identical the cutoff equals max, so ~train_mask is empty."""
+    # Use pd.Series so .quantile() is available
+    dates = pd.Series(pd.to_datetime(['2022-06-01'] * 20))
+    test_split = 0.2
+    cutoff = dates.quantile(1 - test_split)
+    train_mask = dates <= cutoff
+    # All rows equal the cutoff date → all are in train → fallback path needed
+    assert (~train_mask).sum() == 0

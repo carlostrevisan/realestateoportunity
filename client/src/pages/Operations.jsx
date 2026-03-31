@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useAuth } from "@clerk/react";
 import { Label, Val, StatusDot, Btn, StatusBadge } from "../components/UI.jsx";
+import { fmtDate } from "@/lib/utils";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
@@ -70,10 +71,6 @@ const OP_TYPE_COLOR = {
   census:         "bg-slate-100 text-slate-600 border-slate-200",
 };
 
-function fmtDate(iso) {
-  if (!iso) return "-";
-  return new Date(iso).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
-}
 
 function OpsHistory() {
   const [ops, setOps] = useState([]);
@@ -896,38 +893,26 @@ export default function Operations() {
   const [mlStatus, setMlStatus] = useState(null);
   const [scrapeStatus, setScrapeStatus] = useState([]);
 
-  const fetchModels = useCallback(async () => {
+  const fetchAll = useCallback(async () => {
     try {
-      const data = await fetch(`${API}/api/ml/models`).then(r => r.json());
-      if (Array.isArray(data)) setModels(data);
-    } catch {}
-  }, []);
-
-  const fetchStatus = useCallback(async () => {
-    try {
-      const jb = await fetch(`${API}/api/jobs`).then(r => r.json());
-      setJobs(Array.isArray(jb) ? jb : []);
-    } catch {}
-  }, []);
-
-  const fetchEngineStatus = useCallback(async () => {
-    try {
-      const [ml, sc] = await Promise.all([
+      const [jb, models, ml, sc] = await Promise.all([
+        fetch(`${API}/api/jobs`).then(r => r.json()),
+        fetch(`${API}/api/ml/models`).then(r => r.json()),
         fetch(`${API}/api/ml/status`).then(r => r.json()),
         fetch(`${API}/api/scrape/status`).then(r => r.json()),
       ]);
+      setJobs(Array.isArray(jb) ? jb : []);
+      if (Array.isArray(models)) setModels(models);
       setMlStatus(ml);
       setScrapeStatus(sc.scrape_status || []);
     } catch {}
   }, []);
 
   useEffect(() => {
-    fetchStatus();
-    fetchModels();
-    fetchEngineStatus();
-    const id = setInterval(() => { fetchStatus(); fetchModels(); fetchEngineStatus(); }, 15000);
+    fetchAll();
+    const id = setInterval(fetchAll, 15000);
     return () => clearInterval(id);
-  }, [fetchStatus, fetchModels, fetchEngineStatus]);
+  }, [fetchAll]);
 
   return (
     <div className="flex flex-col h-full overflow-y-auto lg:overflow-hidden bg-plt-bg text-plt-primary selection:bg-plt-accent selection:text-white custom-scrollbar">
@@ -936,7 +921,7 @@ export default function Operations() {
       </div>
       <div className="flex-1 flex flex-col lg:flex-row lg:overflow-hidden px-4 sm:px-6 py-6 gap-5 min-h-0">
         <div className="flex-1 min-w-0 min-h-[360px] sm:min-h-[480px] lg:min-h-0 flex flex-col">
-          <ControlCard onJob={setActiveJobId} models={models} fetchModels={fetchModels} isSignedIn={isSignedIn} />
+          <ControlCard onJob={setActiveJobId} models={models} fetchModels={fetchAll} isSignedIn={isSignedIn} />
         </div>
         <div className="flex-1 min-w-0 min-h-[360px] sm:min-h-[480px] lg:min-h-0 flex flex-col">
           <JobConsole

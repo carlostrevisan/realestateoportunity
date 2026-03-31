@@ -170,10 +170,12 @@ router.get("/", async (req, res) => {
         id, mls_id, address, city, zip,
         lat, lng,
         year_built, sqft, lot_sqft,
+        beds, baths,
         list_price, sold_price, sold_date,
         listing_type,
         predicted_rebuild_value,
         opportunity_result,
+        opp_low, opp_high,
         construction_cost_per_sqft
       FROM properties
       ${whereClause}
@@ -202,8 +204,12 @@ router.get("/", async (req, res) => {
         sold_price: row.sold_price,
         sold_date: row.sold_date,
         listing_type: row.listing_type,
+        beds: row.beds,
+        baths: row.baths != null ? parseFloat(row.baths) : null,
         predicted_rebuild_value: row.predicted_rebuild_value,
         opportunity_result: row.opportunity_result,
+        opp_low: row.opp_low,
+        opp_high: row.opp_high,
         construction_cost_per_sqft: row.construction_cost_per_sqft,
         roi_color: getRoiColor(row.opportunity_result),
       },

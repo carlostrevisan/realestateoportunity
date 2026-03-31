@@ -8,7 +8,7 @@ import {
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Label, Val, StatusDot, Panel } from "../components/UI.jsx";
-import { formatCityName } from "@/lib/utils";
+import { formatCityName, fmtDate } from "@/lib/utils";
 
 const API = "";
 
@@ -25,12 +25,6 @@ const PIE_COLORS = [
   "#6366f1",
 ];
 
-function fmtDate(iso) {
-  if (!iso) return "-";
-  return new Date(iso).toLocaleString([], {
-    month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
-  });
-}
 
 function fmtShortDate(dateStr) {
   if (!dateStr) return "";

@@ -38,6 +38,9 @@ if "homeharvest" not in sys.modules:
     mock_hh.scrape_property = MagicMock()
     sys.modules["homeharvest"] = mock_hh
 
+if "requests" not in sys.modules:
+    sys.modules["requests"] = MagicMock()
+
 # ── 3. Ensure the data-engine source directory is on the path ───────────────
 _engine_dir = os.path.dirname(os.path.dirname(__file__))
 if _engine_dir not in sys.path:

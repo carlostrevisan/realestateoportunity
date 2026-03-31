@@ -21,7 +21,14 @@ from sklearn.metrics import r2_score
 import db
 
 # Updated feature set
-FEATURE_COLS = ['sqft', 'lot_sqft', 'year_built', 'median_household_income', 'zip', 'avg_new_build_price_sqft_05mi']
+FEATURE_COLS = [
+    'sqft', 'lot_sqft', 'year_built',
+    'beds', 'baths',
+    'month_sold',
+    'median_household_income',
+    'zip', 'city_encoded',
+    'avg_new_build_price_sqft_05mi',
+]
 
 # Module-level constants - replace magic numbers throughout
 NEARBY_RADIUS_MILES       = 0.5
@@ -230,8 +237,8 @@ def train_model(n_estimators=300, max_depth=4, learning_rate=0.05, min_year_buil
 
         # 2. Filter for training (new builds)
         train_df = df[df['year_built'] >= min_year_built].copy()
-        if train_df.empty:
-            msg = f"No new builds (post-{min_year_built}) found"
+        if len(train_df) < 10:
+            msg = f"Insufficient new builds post-{min_year_built} ({len(train_df)} rows, need at least 10)"
             logger.warning(f"[SKIP] {msg}")
             db.fail_model_run(run_id, msg)
             return
@@ -241,7 +248,16 @@ def train_model(n_estimators=300, max_depth=4, learning_rate=0.05, min_year_buil
         train_df['avg_new_build_price_sqft_05mi'] = calculate_geospatial_features(train_df, train_df)
         logger.info(f"[LOAD] Geospatial features done in {time.time() - t0:.1f}s")
 
-        # 4. Prepare X, y
+        # 4. Temporal features from sold_date
+        sold_dates = pd.to_datetime(train_df['sold_date'], errors='coerce')
+        train_df['month_sold'] = sold_dates.dt.month.fillna(0).astype(int)
+
+        # 5. City encoding (ordinal, same pattern as zip_map)
+        unique_cities = sorted(train_df['city'].dropna().str.lower().unique().tolist())
+        city_map = {c: i for i, c in enumerate(unique_cities)}
+        train_df['city_encoded'] = train_df['city'].str.lower().map(city_map).fillna(-1)
+
+        # 6. Prepare X, y
         unique_zips = sorted(train_df['zip'].dropna().unique().tolist())
         zip_map = {z: i for i, z in enumerate(unique_zips)}
 
@@ -249,15 +265,31 @@ def train_model(n_estimators=300, max_depth=4, learning_rate=0.05, min_year_buil
         for col in FEATURE_COLS:
             if col == 'zip':
                 X['zip'] = X['zip'].map(zip_map).fillna(-1)
+            elif col == 'city_encoded':
+                pass  # already encoded above
             else:
                 X[col] = pd.to_numeric(X[col], errors='coerce').fillna(0)
 
         y = train_df['sold_price']
 
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_split, random_state=42)
-        logger.info(f"[LOAD] Train/test split: {len(X_train)} train rows, {len(X_test)} test rows")
+        # Temporal train/test split — avoids leaking future sales into training
+        cutoff = sold_dates.quantile(1 - test_split)
+        if pd.notna(cutoff):
+            train_mask = sold_dates <= cutoff
+            if train_mask.sum() > 0 and (~train_mask).sum() > 0:
+                X_train, y_train = X[train_mask], y[train_mask]
+                X_test,  y_test  = X[~train_mask], y[~train_mask]
+                logger.info(f"[LOAD] Temporal split: cutoff {cutoff.date()}, {len(X_train)} train / {len(X_test)} test rows")
+            else:
+                # Not enough date diversity — fall back to tail split
+                X_train, X_test = X.iloc[:-max(10, int(len(X)*test_split))], X.iloc[-max(10, int(len(X)*test_split)):]
+                y_train, y_test = y.iloc[:-max(10, int(len(y)*test_split))], y.iloc[-max(10, int(len(y)*test_split)):]
+                logger.info(f"[LOAD] Temporal split fallback (no date diversity): {len(X_train)} train / {len(X_test)} test rows")
+        else:
+            X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_split, random_state=42)
+            logger.info(f"[LOAD] Random split (no sold_date): {len(X_train)} train / {len(X_test)} test rows")
 
-        # 5. Train
+        # 7. Train
         if algorithm == "xgboost":
             model = xgb.XGBRegressor(
                 objective='reg:squarederror',
@@ -302,12 +334,34 @@ def train_model(n_estimators=300, max_depth=4, learning_rate=0.05, min_year_buil
         timestamp  = datetime.now().strftime("%Y%m%d_%H%M%S")
         model_path = _save_model(model, algorithm, run_id, timestamp)
 
+        # Quantile confidence interval models (XGBoost only)
+        q_paths = {}
+        if algorithm == "xgboost":
+            for alpha_q, label in [(0.10, "q10"), (0.90, "q90")]:
+                logger.info(f"[EXEC] Training quantile model {label} (alpha={alpha_q})...")
+                q_model = xgb.XGBRegressor(
+                    objective='reg:quantileerror',
+                    quantile_alpha=alpha_q,
+                    n_estimators=n_estimators,
+                    learning_rate=learning_rate,
+                    max_depth=max_depth,
+                    subsample=0.8,
+                    colsample_bytree=0.8,
+                    random_state=42,
+                    nthread=1,
+                )
+                q_model.fit(X_train, y_train)
+                q_paths[label] = _save_model(q_model, "xgboost", run_id, f"{timestamp}_{label}")
+            logger.info(f"[LOAD] Quantile models saved: {list(q_paths.keys())}")
+
         context = {
             "algorithm": algorithm,
             "zip_codes": sorted(df['zip'].dropna().unique().tolist()),
             "year_built_min": min_year_built,
             "feature_importances": feature_importances,
             "zip_map": zip_map,
+            "city_map": city_map,
+            "quantile_model_paths": q_paths,
             "n_estimators": n_estimators,
             "max_depth": max_depth,
             "learning_rate": learning_rate,
@@ -352,10 +406,11 @@ def score_properties():
             context = json.loads(context)
         logger.info(f"[LOAD] training_context keys: {list(context.keys())}")
 
-        zip_map = context.get("zip_map", {})
+        zip_map  = context.get("zip_map", {})
+        city_map = context.get("city_map", {})
         year_built_min = context.get("year_built_min", 2015)
         algorithm = context.get("algorithm", "xgboost")
-        logger.info(f"[LOAD] algorithm={algorithm}  year_built_min={year_built_min}  zip_map entries={len(zip_map)}")
+        logger.info(f"[LOAD] algorithm={algorithm}  year_built_min={year_built_min}  zip_map entries={len(zip_map)}  city_map entries={len(city_map)}")
 
         # Load reference data for geospatial features
         logger.info("[EXEC] Fetching sold data for geospatial reference...")
@@ -389,6 +444,10 @@ def score_properties():
         logger.info(f"[LOAD] Geo features done in {time.time() - t0:.1f}s - non-null: {df['avg_new_build_price_sqft_05mi'].notna().sum()}/{len(df)}")
         del sold_df; gc.collect()
 
+        # Derived features (for-sale properties have no sold_date → month_sold=0)
+        df['month_sold']    = 0
+        df['city_encoded']  = df['city'].str.lower().map(city_map).fillna(-1) if 'city' in df.columns else -1
+
         # Load model
         logger.info(f"[EXEC] Loading {algorithm} model from {active['model_path']}...")
         model, feature_names = _load_model(algorithm, active["model_path"])
@@ -401,6 +460,8 @@ def score_properties():
                 before = X['zip'].nunique()
                 X['zip'] = X['zip'].map(zip_map).fillna(-1)
                 logger.info(f"[EXEC] ZIP encoded: {before} unique zips, {(X['zip'] == -1).sum()} unmapped (set to -1)")
+            elif col == 'city_encoded':
+                pass  # already encoded above
             else:
                 X[col] = pd.to_numeric(X[col], errors='coerce').fillna(0)
 
@@ -413,18 +474,52 @@ def score_properties():
         df['predicted_rebuild_value'] = model.predict(X).astype(int)
         logger.info(f"[LOAD] Predictions done - min={df['predicted_rebuild_value'].min()}  max={df['predicted_rebuild_value'].max()}  mean={df['predicted_rebuild_value'].mean():.0f}")
 
-        # Score
+        # Realistic BDR cost formula:
+        #   hard_cost       = sqft * cost_per_sqft
+        #   soft costs      = 18% of hard (permits, arch, engineering)
+        #   contingency     = 10% of hard
+        #   carrying costs  =  8% of (acquisition + hard)
+        #   total_dev_cost  = list_price * 1.08 + hard_cost * 1.36
         cost_per_sqft = df['construction_cost_per_sqft'].fillna(CONSTRUCTION_COST_DEFAULT).astype(float)
-        opp = df['predicted_rebuild_value'] - (df['list_price'] + df['sqft'] * cost_per_sqft)
+        hard_cost     = df['sqft'].astype(float) * cost_per_sqft
+        total_cost    = df['list_price'].astype(float) * 1.08 + hard_cost * 1.36
+        opp = df['predicted_rebuild_value'].astype(float) - total_cost
         positive = (opp > 0).sum()
         logger.info(f"[EXEC] Opportunity scores computed - positive: {positive}/{len(df)}")
 
-        results = (
-            df[['id', 'predicted_rebuild_value']]
-            .assign(opportunity_result=opp.astype(int))
-            .astype({'id': int, 'predicted_rebuild_value': int, 'opportunity_result': int})
-            .to_dict('records')
-        )
+        # Protect opportunity score from NaN/inf before int conversion
+        opp_safe = np.where(np.isfinite(opp.values), opp.values, 0.0)
+
+        # Quantile confidence intervals (optional — only if quantile models were trained)
+        q_paths     = context.get("quantile_model_paths", {})
+        has_quantiles = False
+        opp_low_arr  = np.zeros(len(df), dtype=np.int64)
+        opp_high_arr = np.zeros(len(df), dtype=np.int64)
+        if "q10" in q_paths and "q90" in q_paths:
+            try:
+                logger.info("[EXEC] Computing quantile confidence intervals...")
+                q10_model, _ = _load_model("xgboost", q_paths["q10"])
+                q90_model, _ = _load_model("xgboost", q_paths["q90"])
+                pred_low  = q10_model.predict(X).astype(float)
+                pred_high = q90_model.predict(X).astype(float)
+                opp_low_raw  = pred_low  - total_cost.values
+                opp_high_raw = pred_high - total_cost.values
+                opp_low_arr  = np.where(np.isfinite(opp_low_raw),  opp_low_raw,  0.0).astype(np.int64)
+                opp_high_arr = np.where(np.isfinite(opp_high_raw), opp_high_raw, 0.0).astype(np.int64)
+                has_quantiles = True
+                logger.info(f"[LOAD] Confidence intervals computed for {len(df)} properties")
+            except Exception as qe:
+                logger.warning(f"[SKIP] Quantile models failed ({qe}), skipping confidence intervals")
+
+        results = []
+        for i, row in enumerate(df[['id', 'predicted_rebuild_value']].itertuples(index=False)):
+            results.append({
+                'id':                      int(row.id),
+                'predicted_rebuild_value': int(row.predicted_rebuild_value),
+                'opportunity_result':      int(opp_safe[i]),
+                'opp_low':  int(opp_low_arr[i])  if has_quantiles else None,
+                'opp_high': int(opp_high_arr[i]) if has_quantiles else None,
+            })
 
         logger.info(f"[EXEC] Writing {len(results)} scores to DB...")
         db.write_opportunity_scores(results)
@@ -494,17 +589,23 @@ def score_properties_weighted(weights: dict):
 
         df['predicted_rebuild_value'] = (p10 + df['weighted_score'] * price_range).fillna(p10).astype(int)
 
-        cost_sqft = df['construction_cost_per_sqft'].fillna(CONSTRUCTION_COST_DEFAULT).astype(float)
-        sqft_col  = df['sqft'].fillna(0.0).astype(float)
-        acq_col   = df['list_price'].fillna(0.0).astype(float)
-        opp       = df['predicted_rebuild_value'].astype(float) - (acq_col + sqft_col * cost_sqft)
-        opp_int   = np.where(np.isfinite(opp), opp.astype(int), 0)
-        results = (
-            df[['id', 'predicted_rebuild_value']]
-            .assign(opportunity_result=opp_int)
-            .astype({'id': int, 'predicted_rebuild_value': int, 'opportunity_result': int})
-            .to_dict('records')
-        )
+        cost_sqft  = df['construction_cost_per_sqft'].fillna(CONSTRUCTION_COST_DEFAULT).astype(float)
+        sqft_col   = df['sqft'].fillna(0.0).astype(float)
+        acq_col    = df['list_price'].fillna(0.0).astype(float)
+        hard_cost  = sqft_col * cost_sqft
+        total_cost = acq_col * 1.08 + hard_cost * 1.36
+        opp        = df['predicted_rebuild_value'].astype(float) - total_cost
+        opp_int    = np.where(np.isfinite(opp), opp.astype(int), 0)
+        results = [
+            {
+                'id':                      int(row['id']),
+                'predicted_rebuild_value': int(row['predicted_rebuild_value']),
+                'opportunity_result':      int(opp_int[i]),
+                'opp_low':  None,
+                'opp_high': None,
+            }
+            for i, (_, row) in enumerate(df[['id', 'predicted_rebuild_value']].iterrows())
+        ]
 
         db.write_opportunity_scores(results)
         db.complete_model_run(run_id, properties_scored=len(results), training_context=json.dumps({"weights": weights}))

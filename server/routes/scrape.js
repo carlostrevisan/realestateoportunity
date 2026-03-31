@@ -18,6 +18,9 @@ router.post("/trigger", requireAuth, async (req, res) => {
   if (zip && !/^\d{5}$/.test(zip)) {
     return res.status(400).json({ error: "zip must be 5 digits" });
   }
+  if (market && (typeof market !== "string" || market.length > 100 || /[<>"';\\/]/.test(market))) {
+    return res.status(400).json({ error: "Invalid market value" });
+  }
   if (type === "sold" && !(start && end)) {
     return res.status(400).json({ error: 'type "sold" requires start and end (YYYY-MM)' });
   }

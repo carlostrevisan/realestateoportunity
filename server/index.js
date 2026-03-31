@@ -11,7 +11,8 @@ const exportRouter = require("./routes/export");
 const mlRouter = require("./routes/ml");
 const jobsRouter = require("./routes/jobs");
 const statsRouter  = require("./routes/stats");
-const reportRouter = require("./routes/report");
+const reportRouter  = require("./routes/report");
+const schoolsRouter = require("./routes/schools");
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -58,6 +59,7 @@ app.use("/api/scrape", scrapeRouter);
 app.use("/api/export", exportRouter);
 app.use("/api/ml", mlRouter);
 app.use("/api/jobs", jobsRouter);
+app.use("/api/schools", schoolsRouter);
 
 // 404 fallback
 app.use((req, res) => {

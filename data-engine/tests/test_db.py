@@ -65,7 +65,8 @@ class TestUpsertProperties:
         records = [
             {"mls_id": "MLS001", "address": "123 Oak", "city": "Tampa", "zip": "33606",
              "lat": 27.948, "lng": -82.458, "year_built": 1965, "sqft": 1800,
-             "lot_sqft": 7500, "list_price": 450000, "sold_price": None,
+             "lot_sqft": 7500, "beds": 3, "baths": 2.0,
+             "list_price": 450000, "sold_price": None,
              "sold_date": None, "property_type": "SINGLE_FAMILY"},
         ]
 
@@ -81,7 +82,8 @@ class TestUpsertProperties:
         records = [
             {"mls_id": "A", "address": "1st St", "city": "Tampa", "zip": "33606",
              "lat": 27.9, "lng": -82.4, "year_built": 1970, "sqft": 1500,
-             "lot_sqft": 6000, "list_price": 300000, "sold_price": None,
+             "lot_sqft": 6000, "beds": 3, "baths": 2.0,
+             "list_price": 300000, "sold_price": None,
              "sold_date": None, "property_type": "SINGLE_FAMILY"},
         ]
 
@@ -98,7 +100,8 @@ class TestUpsertProperties:
         records = [
             {"mls_id": "B", "address": "2nd Ave", "city": "Tampa", "zip": "33606",
              "lat": 27.9, "lng": -82.4, "year_built": 1980, "sqft": 2000,
-             "lot_sqft": 8000, "list_price": 500000, "sold_price": None,
+             "lot_sqft": 8000, "beds": 4, "baths": 3.0,
+             "list_price": 500000, "sold_price": None,
              "sold_date": None, "property_type": "SINGLE_FAMILY"},
         ]
 
@@ -208,7 +211,8 @@ class TestWriteOpportunityScores:
         import db
         mock_batch = mocker.patch("db.psycopg2.extras.execute_batch")
         scores = [
-            {"id": 1, "predicted_rebuild_value": 720000, "opportunity_result": 115000},
+            {"id": 1, "predicted_rebuild_value": 720000, "opportunity_result": 115000,
+             "opp_low": 80000, "opp_high": 150000},
         ]
 
         # Act

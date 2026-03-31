@@ -196,6 +196,10 @@ export default function OpportunityMap({ filters, roiFilters, onSelectProperty, 
         rows: [
           ['EST. PROFIT', `$${p.opportunity_result?.toLocaleString() || '0'}`, `color:${color};font-weight:800;`],
           ['LIVING AREA', `${p.sqft?.toLocaleString() || 'N/A'} SQFT`,        'font-weight:700;'],
+          ...(p.beds  != null ? [['BEDS / BATHS', `${p.beds}bd / ${p.baths ?? '?'}ba`, '']] : []),
+          ...(p.opp_low != null && p.opp_high != null
+            ? [['RANGE', `$${Math.round(p.opp_low/1000)}k – $${Math.round(p.opp_high/1000)}k`, 'color:#64748b;']]
+            : []),
         ],
         zillowUrl: zillowListingUrl, buttonColor: '#2563eb',
       });

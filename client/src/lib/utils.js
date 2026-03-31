@@ -14,3 +14,9 @@ export function formatCityName(city) {
 export function buildZillowUrl(address, cityDisplay, zip) {
   return `https://www.zillow.com/homes/${encodeURIComponent(`${address}, ${cityDisplay}, FL ${zip}`)}_rb/`;
 }
+
+/** Formats an ISO timestamp as "Mon D, HH:MM" for display in job logs and run history. */
+export function fmtDate(iso) {
+  if (!iso) return "-";
+  return new Date(iso).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+}

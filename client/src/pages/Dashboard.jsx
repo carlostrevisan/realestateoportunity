@@ -588,7 +588,10 @@ export default function Dashboard() {
             const age = p.year_built ? currentYear - p.year_built : null;
             const costPerSqft = parseFloat(p.construction_cost_per_sqft || 175);
             const buildCost = p.sqft ? Math.round(p.sqft * costPerSqft) : null;
-            const totalCost = p.list_price && buildCost ? p.list_price + buildCost : null;
+            // Realistic BDR total: list_price × 1.08 + hard_cost × 1.36
+            const totalCost = p.list_price && buildCost
+              ? Math.round(p.list_price * 1.08 + buildCost * 1.36)
+              : null;
             const profit = p.opportunity_result;
             const profitColor = profit == null ? "text-plt-muted" : profit > 200000 ? "text-plt-success" : profit > 0 ? "text-plt-warning" : "text-plt-danger";
             const profitSign = profit != null && profit > 0 ? "+" : "";
@@ -626,6 +629,10 @@ export default function Dashboard() {
                     <span className="text-right font-mono font-bold text-plt-primary">{p.lot_sqft ? p.lot_sqft.toLocaleString() + ' sqft' : '-'}</span>
                     <span className="text-plt-muted">Type</span>
                     <span className="text-right text-plt-primary">{p.property_type || 'Single Family'}</span>
+                    {p.beds != null && <>
+                      <span className="text-plt-muted">Beds / Baths</span>
+                      <span className="text-right font-mono font-bold text-plt-primary">{p.beds}bd / {p.baths ?? '?'}ba</span>
+                    </>}
                   </div>
 
                   {/* Financials */}
@@ -637,13 +644,13 @@ export default function Dashboard() {
                     </div>
                     {buildCost && (
                       <div className="flex justify-between">
-                        <span className="text-plt-muted">Est. Build Cost <span className="text-[9px] opacity-60">({p.sqft?.toLocaleString()} × ${costPerSqft}/sqft)</span></span>
+                        <span className="text-plt-muted">Hard Build Cost <span className="text-[9px] opacity-60">({p.sqft?.toLocaleString()} × ${costPerSqft}/sqft)</span></span>
                         <span className="font-mono font-bold text-plt-primary">${buildCost.toLocaleString()}</span>
                       </div>
                     )}
                     {totalCost && (
                       <div className="flex justify-between border-t border-plt-border/40 pt-1.5">
-                        <span className="text-plt-muted font-semibold">Total Cost</span>
+                        <span className="text-plt-muted font-semibold">Total Dev Cost <span className="text-[9px] opacity-60">(+soft/carry)</span></span>
                         <span className="font-mono font-bold text-plt-primary">${totalCost.toLocaleString()}</span>
                       </div>
                     )}
@@ -657,6 +664,14 @@ export default function Dashboard() {
                         {profit != null ? `${profitSign}$${Math.abs(profit).toLocaleString()}` : '-'}
                       </span>
                     </div>
+                    {p.opp_low != null && p.opp_high != null && (
+                      <div className="flex justify-between">
+                        <span className="text-plt-muted text-[10px]">90% Range</span>
+                        <span className="font-mono text-[10px] text-plt-muted">
+                          ${Math.round(p.opp_low / 1000)}k – ${Math.round(p.opp_high / 1000)}k
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-2 gap-2">

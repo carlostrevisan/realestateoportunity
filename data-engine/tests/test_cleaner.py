@@ -303,3 +303,31 @@ class TestNormalizeForDb:
         result = normalize_for_db(self._valid_df())
         assert result[0]["lat"] == pytest.approx(27.948)
         assert result[0]["lng"] == pytest.approx(-82.458)
+
+    def test_beds_and_baths_are_mapped_from_homeharvest_columns(self):
+        # Arrange - HomeHarvest-style column names
+        df = self._valid_df()
+        df["beds"] = 3
+        df["full_baths"] = 2.0
+        # Act
+        result = normalize_for_db(df)
+        # Assert
+        assert result[0]["beds"] == 3
+        assert result[0]["baths"] == pytest.approx(2.0)
+
+    def test_beds_and_baths_are_none_when_columns_absent(self):
+        # Arrange - no beds/baths columns at all
+        df = self._valid_df()
+        # Act
+        result = normalize_for_db(df)
+        # Assert
+        assert result[0]["beds"] is None
+        assert result[0]["baths"] is None
+
+    def test_beds_mapped_from_bedrooms_column(self):
+        # Arrange - alternate HomeHarvest column name
+        df = self._valid_df()
+        df["bedrooms"] = 4
+        df["baths"] = 3.0
+        result = normalize_for_db(df)
+        assert result[0]["beds"] == 4
